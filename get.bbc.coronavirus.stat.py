@@ -23,23 +23,29 @@ import requests
 
 now = datetime.datetime.now()
 
+
 def printfooter():
-    print('='*60)
+    print('=' * 60)
+
 
 def printheader():
-    print('='*60)
+    print('=' * 60)
     print(f'{"№":>4} {"region":30} {"cases":6} {"deaths":6} {"%":>5}')
     print('-' * 60)
 
-tml_output='{count:4} {region:30} {cases:6} {deaths:6} {percent:>5.2f}%'
+
+tml_output = '{count:4} {region:30} {cases:6} {deaths:6} {percent:>5.2f}%'
+
 
 def printrow(count, region, cases, deaths, percent):
     print(tml_output.format(count=count, region=region, cases=cases, deaths=deaths, percent=percent))
+
 
 def printrowfilter(count, region, cases, deaths, percent):
     print('\033[1;40;37m', end='')
     print(tml_output.format(count=count, region=region, cases=cases, deaths=deaths, percent=percent), end='')
     print('\033[m')
+
 
 def save2json(total_list):
     # convert list to dictionary
@@ -50,6 +56,7 @@ def save2json(total_list):
     # use json because it saves correct data and converts quotes. in the future it will allow the use of json.loads.
     with open(f'bbc.covid19.{now:%F}.json', 'w', encoding='utf-8') as f:
         json.dump(total_dict, f)
+
 
 def save2csv(total_list):
     # write list to csv
@@ -62,7 +69,7 @@ def save2csv(total_list):
 
 url_base = 'https://www.bbc.com/news/world-51235105'
 headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:45.0) Gecko/20100101 Firefox/45.0'
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:45.0) Gecko/20100101 Firefox/45.0'
 }
 
 response = requests.get(url_base, headers=headers)
@@ -81,7 +88,7 @@ with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
 soap = BeautifulSoup(response.text, "html.parser")
 filter_tag_tbody = soap.findAll('tbody')
 total_list = []
-#filter_tag_tbody_text = filter_tag_tbody[0].text
+# filter_tag_tbody_text = filter_tag_tbody[0].text
 printheader()
 count = 0
 for child in filter_tag_tbody[0]:
@@ -101,16 +108,16 @@ for child in filter_tag_tbody[0]:
             try:
                 cases = int(tags_td[1].text.strip().replace(',', ''))
                 deaths = int(tags_td[2].text.strip().replace(',', ''))
-            except :
+            except:
                 continue
             if cases != 0:
-                percent = round(deaths/cases * 100, 2)
+                percent = round(deaths / cases * 100, 2)
             total_list.append([region, cases, deaths, percent])
             if region.upper() == 'RUSSIA':
                 printrowfilter(count, region, cases, deaths, percent)
             elif count < 10:
                 printrow(count, region, cases, deaths, percent)
-            count+=1
+            count += 1
 printfooter()
 print(f'count: {len(total_list)}')
 cases_min = 1000
@@ -121,18 +128,18 @@ list_sort_percent = [i for i in total_list if i[1] > cases_min]
 save2json(total_list)
 save2csv(total_list)
 
-list_sort_percent = sorted(list_sort_percent, key=lambda item:item[3])
+list_sort_percent = sorted(list_sort_percent, key=lambda item: item[3])
 printheader()
 count = 0
 for row in list_sort_percent:
-    region  = row[0]
-    cases   = row[1]
-    deaths  = row[2]
+    region = row[0]
+    cases = row[1]
+    deaths = row[2]
     percent = row[3]
     if region.upper() == 'RUSSIA':
         printrowfilter(count, region, cases, deaths, percent)
     else:
         printrow(count, region, cases, deaths, percent)
-    count +=1
+    count += 1
 printfooter()
 print(f'count: {len(list_sort_percent)}')
