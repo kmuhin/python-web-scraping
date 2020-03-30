@@ -91,33 +91,34 @@ total_list = []
 # filter_tag_tbody_text = filter_tag_tbody[0].text
 printheader()
 count = 0
-for child in filter_tag_tbody[0]:
-    if child.name:
+if filter_tag_tbody[0]:
+    for child in filter_tag_tbody[0]:
+        if child.name:
         # search tag by class
         # region = child.find('td',attrs = {'class':'core__region')
         # print(region)
         # print(child)
 
         # search tag <td>
-        tags_td = child.find_all('td')
-        if tags_td:
-            region = tags_td[0].text.strip()
-            cases = 0
-            deaths = 0
-            percent = 0
-            try:
-                cases = int(tags_td[1].text.strip().replace(',', ''))
-                deaths = int(tags_td[2].text.strip().replace(',', ''))
-            except:
-                continue
-            if cases != 0:
-                percent = round(deaths / cases * 100, 2)
-            total_list.append([region, cases, deaths, percent])
-            if region.upper() == 'RUSSIA':
-                printrowfilter(count, region, cases, deaths, percent)
-            elif count < 10:
-                printrow(count, region, cases, deaths, percent)
-            count += 1
+            tags_td = child.find_all('td')
+            if tags_td:
+                region = tags_td[0].text.strip()
+                cases = 0
+                deaths = 0
+                percent = 0
+                try:
+                    cases = int(tags_td[1].text.strip().replace(',', ''))
+                    deaths = int(tags_td[2].text.strip().replace(',', ''))
+                except:
+                    continue
+                if cases != 0:
+                    percent = round(deaths / cases * 100, 2)
+                total_list.append([region, cases, deaths, percent])
+                if region.upper() == 'RUSSIA':
+                    printrowfilter(count, region, cases, deaths, percent)
+                elif count < 10:
+                    printrow(count, region, cases, deaths, percent)
+                count += 1
 printfooter()
 print(f'count: {len(total_list)}')
 cases_min = 1000
