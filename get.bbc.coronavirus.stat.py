@@ -33,7 +33,7 @@ def createDB():
                    'region TEXT NOT NULL, '
                    'regionISO TEXT)')
     cursor.execute('CREATE TABLE IF NOT EXISTS CasesDay('
-                   'date text NOT NULL, '
+                   'date_int INT NOT NULL, '
                    'region_id integer NOT NULL, '
                    'cases INT,'
                    'deaths INT'
@@ -46,11 +46,11 @@ def printfooter():
 
 def printheader():
     print('=' * 60)
-    print(f'{"№":>3} {"region":30} {"ISO":4} {"cases":8} {"deaths":6} {"%":>5}')
+    print(f'{"N":>3} {"region":25} {"ISO":3} {"cases":>8} {"deaths":>6} {"%":>8}')
     print('-' * 60)
 
 
-tml_output = '{count:3} {region:30} {dataiso:4} {cases:8} {deaths:6} {percent:>5.2f}%'
+tml_output = '{count:3} {region:25} {dataiso:3} {cases:8} {deaths:6} {percent:>8.2f}%'
 
 
 def printrow(count, region, dataiso, cases, deaths, percent):
