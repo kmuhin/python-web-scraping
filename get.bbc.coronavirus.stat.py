@@ -3,6 +3,7 @@ import datetime
 import csv
 import json
 import requests
+import sqlite3
 
 """
     The script get data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
@@ -24,26 +25,41 @@ import requests
 now = datetime.datetime.now()
 
 
+def createDB():
+    conn = sqlite3.connect('bbc.covid19.db')
+    cursor = conn.cursor()
+    cursor.execute('CREATE TABLE IF NOT EXISTS regions('
+                   'id INT PRIMARY KEY, '
+                   'region TEXT NOT NULL, '
+                   'regionISO TEXT)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS CasesDay('
+                   'date text NOT NULL, '
+                   'region_id integer NOT NULL, '
+                   'cases INT,'
+                   'deaths INT'
+                   'FOREIGN KEY (region_id) PREFERENCES  regions(id)'
+                   ')')
+
 def printfooter():
     print('=' * 60)
 
 
 def printheader():
     print('=' * 60)
-    print(f'{"№":>4} {"region":30} {"cases":6} {"deaths":6} {"%":>5}')
+    print(f'{"№":>3} {"region":30} {"ISO":4} {"cases":8} {"deaths":6} {"%":>5}')
     print('-' * 60)
 
 
-tml_output = '{count:4} {region:30} {cases:6} {deaths:6} {percent:>5.2f}%'
+tml_output = '{count:3} {region:30} {dataiso:4} {cases:8} {deaths:6} {percent:>5.2f}%'
 
 
-def printrow(count, region, cases, deaths, percent):
-    print(tml_output.format(count=count, region=region, cases=cases, deaths=deaths, percent=percent))
+def printrow(count, region, dataiso, cases, deaths, percent):
+    print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent))
 
 
-def printrowfilter(count, region, cases, deaths, percent):
+def printrowfilter(count, region, dataiso, cases, deaths, percent):
     print('\033[1;40;37m', end='')
-    print(tml_output.format(count=count, region=region, cases=cases, deaths=deaths, percent=percent), end='')
+    print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent), end='')
     print('\033[m')
 
 
@@ -100,6 +116,7 @@ if filter_tag_tbody[0]:
         # print(child)
 
         # search tag <td>
+            dataISO = child.attrs['data-iso']
             tags_td = child.find_all('td')
             if tags_td:
                 region = tags_td[0].text.strip()
@@ -115,9 +132,9 @@ if filter_tag_tbody[0]:
                     percent = round(deaths / cases * 100, 2)
                 total_list.append([region, cases, deaths, percent])
                 if region.upper() == 'RUSSIA':
-                    printrowfilter(count, region, cases, deaths, percent)
+                    printrowfilter(count, region, dataISO, cases, deaths, percent)
                 elif count < 10:
-                    printrow(count, region, cases, deaths, percent)
+                    printrow(count, region, dataISO, cases, deaths, percent)
                 count += 1
 printfooter()
 print(f'count: {len(total_list)}')
@@ -138,9 +155,9 @@ for row in list_sort_percent:
     deaths = row[2]
     percent = row[3]
     if region.upper() == 'RUSSIA':
-        printrowfilter(count, region, cases, deaths, percent)
+        printrowfilter(count, region, '', cases, deaths, percent)
     else:
-        printrow(count, region, cases, deaths, percent)
+        printrow(count, region, '', cases, deaths, percent)
     count += 1
 printfooter()
 print(f'count: {len(list_sort_percent)}')
