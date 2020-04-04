@@ -25,7 +25,7 @@ import sqlite3
 now = datetime.datetime.now()
 
 
-def createDB():
+def createDB() -> object:
     conn = sqlite3.connect('bbc.covid19.db')
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS regions('
@@ -41,6 +41,7 @@ def createDB():
                    'deaths INT'
                    'FOREIGN KEY (region_id) PREFERENCES  regions(id)'
                    ')')
+
 def dbinsert(conn, region):
     sql = ''' INSERT OR IGNORE INTO regions (region, regionISO)
               VALUES(?,?)'''
@@ -61,13 +62,15 @@ def printheader():
 tml_output = '{count:3} {region:25} {dataiso:3} {cases:8} {deaths:6} {percent:>8.2f}%'
 
 
-def printrow(count, region, dataiso, cases, deaths, percent):
-    print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent))
+def printrow(dataISO, count, **keywords):
+    print(tml_output.format(count=count, region=keywords[region], dataiso=dataISO, cases=keywords[cases],
+                            deaths=keywords[deaths], percent=keywords[percent]))
 
 
-def printrowfilter(count, region, dataiso, cases, deaths, percent):
+def printrowfilter(dataISO, count, **keywords):
     print('\033[1;40;37m', end='')
-    print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent), end='')
+    print(tml_output.format(count=count, region=keywords[region], dataiso=dataISO, cases=keywords[cases],
+                            deaths=keywords[deaths], percent=keywords[percent]), end='')
     print('\033[m')
 
 
@@ -111,7 +114,7 @@ with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
 
 soap = BeautifulSoup(response.text, "html.parser")
 filter_tag_tbody = soap.findAll('tbody')
-total_list = []
+total_list = {}
 # filter_tag_tbody_text = filter_tag_tbody[0].text
 printheader()
 count = 0
@@ -145,11 +148,11 @@ if filter_tag_tbody[0]:
                     continue
                 if cases != 0:
                     percent = round(deaths / cases * 100, 2)
-                total_list.append([region, cases, deaths, percent])
+                total_list[dataISO] = {'region': region, 'cases': cases, 'deaths': deaths, 'percent': percent}
                 if region.upper() == 'RUSSIA':
-                    printrowfilter(count, region, dataISO, cases, deaths, percent)
+                    printrowfilter(dataISO, count, total_list[dataISO])
                 elif count < 10:
-                    printrow(count, region, dataISO, cases, deaths, percent)
+                    printrow(dataISO, count, total_list[dataISO])
                 count += 1
 printfooter()
 print(f'count: {len(total_list)}')
