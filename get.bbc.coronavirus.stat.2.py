@@ -119,8 +119,18 @@ count = 0
 if filter_tag_tbody[0]:
     for child in filter_tag_tbody[0]:
         if child.name:
-        # <tr class="core__row" data-iso="USA">
-        # search tag <td>
+            # <tr class="core__row" data-iso="USA">
+            #    <td class="core__region">
+            #           USA
+            #    </td>
+            #    <td class="core__value">
+            #           104,688
+            #    </td>
+            #    <td class="core__value">
+            #           1,707
+            #    </td>
+            # </tr>
+            # search tag <td>
             dataISO = child.attrs['data-iso']
             tags_td = child.find_all('td')
             if tags_td:
