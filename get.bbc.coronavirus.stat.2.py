@@ -63,35 +63,29 @@ tml_output = '{count:3} {region:25} {dataiso:3} {cases:8} {deaths:6} {percent:>8
 
 
 def printrow(dataISO, count, **keywords):
-    print(tml_output.format(count=count, region=keywords[region], dataiso=dataISO, cases=keywords[cases],
-                            deaths=keywords[deaths], percent=keywords[percent]))
+    print(tml_output.format(count=count, region=keywords['region'], dataiso=dataISO, cases=keywords['cases'],
+                            deaths=keywords['deaths'], percent=keywords['percent']))
 
 
 def printrowfilter(dataISO, count, **keywords):
     print('\033[1;40;37m', end='')
-    print(tml_output.format(count=count, region=keywords[region], dataiso=dataISO, cases=keywords[cases],
-                            deaths=keywords[deaths], percent=keywords[percent]), end='')
+    print(tml_output.format(count=count, region=keywords['region'], dataiso=dataISO, cases=keywords['cases'],
+                            deaths=keywords['deaths'], percent=keywords['percent']), end='')
     print('\033[m')
 
 
-def save2json(total_list):
-    # convert list to dictionary
-    # x[0] - Region
-    # x[1:4] - cases,death,percent
-    total_dict = {x[0]: x[1:4] for x in total_list}
-    # write dictionary to file
-    # use json because it saves correct data and converts quotes. in the future it will allow the use of json.loads.
-    with open(f'bbc.covid19.{now:%F}.json', 'w', encoding='utf-8') as f:
+def save2json(total_dict):
+    with open(f'bbc.covid19.2.{now:%F}.json', 'w', encoding='utf-8') as f:
         json.dump(total_dict, f)
 
 
-def save2csv(total_list):
+def save2csv(total_dict):
     # write list to csv
-    with open(f'bbc.covid19.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
+    with open(f'bbc.covid19.2.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f, delimiter=';')
-        writer.writerow(['Region', 'Cases', 'Deaths', 'percent'])
-        for row in total_list:
-            writer.writerow(row)
+        writer.writerow(['ISO', 'Region', 'Cases', 'Deaths', 'percent'])
+        for k, v in total_dict.items():
+            writer.writerow([k, v['region'], v['cases'], v['deaths'], v['percent']])
 
 
 url_base = 'https://www.bbc.com/news/world-51235105'
@@ -150,32 +144,33 @@ if filter_tag_tbody[0]:
                     percent = round(deaths / cases * 100, 2)
                 total_list[dataISO] = {'region': region, 'cases': cases, 'deaths': deaths, 'percent': percent}
                 if region.upper() == 'RUSSIA':
-                    printrowfilter(dataISO, count, total_list[dataISO])
+                    printrowfilter(dataISO, count, **total_list[dataISO])
                 elif count < 10:
-                    printrow(dataISO, count, total_list[dataISO])
+                    printrow(dataISO, count, **total_list[dataISO])
                 count += 1
 printfooter()
 print(f'count: {len(total_list)}')
 cases_min = 1000
 print('\nregions with cases > ', cases_min, ':')
 # select region where cases > cases_min
-list_sort_percent = [i for i in total_list if i[1] > cases_min]
+list_sort_percent =[i for i in total_list.items() if i[1]['cases'] >= cases_min]
 
 save2json(total_list)
 save2csv(total_list)
 
-list_sort_percent = sorted(list_sort_percent, key=lambda item: item[3])
+list_sort_percent = sorted(list_sort_percent, key=lambda item: item[1]['percent'])
 printheader()
 count = 0
 for row in list_sort_percent:
-    region = row[0]
-    cases = row[1]
-    deaths = row[2]
-    percent = row[3]
+    region = row[1]['region']
+    cases = row[1]['cases']
+    deaths = row[1]['deaths']
+    percent = row[1]['percent']
+    dataISO = row[0]
     if region.upper() == 'RUSSIA':
-        printrowfilter(count, region, '', cases, deaths, percent)
+        printrowfilter(dataISO, count, **row[1])
     else:
-        printrow(count, region, '', cases, deaths, percent)
+        printrow(dataISO, count, **row[1])
     count += 1
 printfooter()
 print(f'count: {len(list_sort_percent)}')
