@@ -26,28 +26,30 @@ now = datetime.datetime.now()
 
 
 def createDB() -> object:
-    conn = sqlite3.connect('bbc.covid19.db')
+    conn = sqlite3.connect('bbc.covid19.sqlite3')
     cursor = conn.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS regions('
-                   'id INT PRIMARY KEY, '
-                   'region TEXT NOT NULL, '
-                   'regionISO TEXT,'
-                   'UNIQUE(regionISO)'
-                   ')')
-    cursor.execute('CREATE TABLE IF NOT EXISTS CasesADay('
-                   'date_int INT NOT NULL, '
-                   'region_id integer NOT NULL, '
-                   'cases INT,'
-                   'deaths INT'
-                   'FOREIGN KEY (region_id) PREFERENCES  regions(id)'
-                   ')')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS regions(
+                   id INT PRIMARY KEY, 
+                   region TEXT NOT NULL, 
+                   regionISO TEXT NOT NULL,
+                   UNIQUE(regionISO)
+                   )''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS CasesADay(
+                   date_int INT NOT NULL, 
+                   region_id INT NOT NULL, 
+                   cases INT,
+                   deaths INT,
+                   FOREIGN KEY (region_id) REFERENCES regions(id)
+                    )''')
 
-def dbinsert(conn, region):
+def dbinsert(conn, dataISO, data):
     sql = ''' INSERT OR IGNORE INTO regions (region, regionISO)
               VALUES(?,?)'''
     cur = conn.cursor()
-    cur.extcute(sql, region)
-    return cur.lastrowid
+    cur.execute(sql, (data['region'], dataISO))
+    regionid = cur.lastrowid
+    sql = ''' INSERT OR UPDATE INTO CasesADay (region_id, date_int, cases, deaths)
+              VALUES(?,?,?,?)'''
 
 def printfooter():
     print('=' * 60)
