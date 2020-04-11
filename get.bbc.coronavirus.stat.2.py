@@ -29,18 +29,20 @@ def createDB() -> object:
     conn = sqlite3.connect('bbc.covid19.sqlite3')
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS regions(
-                   id INT PRIMARY KEY, 
+                   id INTEGER PRIMARY KEY, 
                    region TEXT NOT NULL, 
                    regionISO TEXT NOT NULL,
                    UNIQUE(regionISO)
                    )''')
+
     cursor.execute('''CREATE TABLE IF NOT EXISTS CasesADay(
                    date_int INT NOT NULL, 
                    region_id INT NOT NULL, 
                    cases INT,
                    deaths INT,
+                   UNIQUE(date_int, region_id),
                    FOREIGN KEY (region_id) REFERENCES regions(id)
-                    )''')
+                   )''')
 
 def dbinsert(conn, dataISO, data):
     sql = ''' INSERT OR IGNORE INTO regions (region, regionISO)

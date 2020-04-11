@@ -1,4 +1,4 @@
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from pprint import pprint
 import sqlite3
 
@@ -24,7 +24,7 @@ def dbinsertregion(conn, data):
 def dbinsert(conn, data):
     cursor = conn.cursor()
     cursor.execute('insert or replace into CasesADay(date_int,region_id,cases,deaths) values(?,?,15,0)',
-                   [data[0].timestamp(), data[1]])
+                   [data[0].replace(tzinfo=timezone.utc).timestamp(), data[1]])
     cursor.close()
     return cursor.lastrowid
 
@@ -48,7 +48,8 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS CasesADay(
                )''')
 
 cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-print('schema: ', cursor.fetchall())
+print('schema: ')
+pprint(cursor.fetchall())
 
 cursor.execute('select * from regions')
 data = cursor.fetchall()
