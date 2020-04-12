@@ -38,8 +38,12 @@ def printdebugresponse(response):
 def readYesterday():
     yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
     filebefore = f'bbc.covid19.{yesterday:%F}.json'
-    with open(filebefore, 'r', encoding='utf-8') as f:
-          total_dict_before=json.load(f)
+    total_dict_before = {}
+    try:
+        with open(filebefore, 'r', encoding='utf-8') as f:
+            total_dict_before=json.load(f)
+    except IOError:
+        pass
     return total_dict_before
 
 def createDB():
@@ -123,7 +127,7 @@ headers = {
 }
 
 response = requests.get(url_base, headers=headers)
-printdebugresponse(response)
+# printdebugresponse(response)
 
 with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
     f.write(response.content)
