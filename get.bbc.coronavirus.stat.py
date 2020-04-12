@@ -21,9 +21,26 @@ import sqlite3
 # 6 cyan
 # 7 white
 # 9 default
+# up arrow \u2191, down \u2193
 
 now = datetime.datetime.now()
 
+def printdebugresponse(response):
+    print(response.url)
+    print(response.elapsed)
+    print(response.encoding)
+    print(response.status_code)
+    for header in response.headers:
+        print(f'{header:40}: {response.headers[header]}')
+    print()
+
+
+def readYesterday():
+    yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+    filebefore = f'bbc.covid19.{yesterday:%F}.json'
+    with open(filebefore, 'r', encoding='utf-8') as f:
+          total_dict_before=json.load(f)
+    return total_dict_before
 
 def createDB():
     conn = sqlite3.connect('bbc.covid19.db')
@@ -54,19 +71,28 @@ def printfooter():
 
 def printheader():
     print('=' * 60)
-    print(f'{"N":>3} {"region":25} {"ISO":3} {"cases":>8} {"deaths":>6} {"%":>8}')
+    print(f' {"N":>3} {"region":25} {"ISO":3} {"cases":>8} {"deaths":>6} {"%":>8}')
     print('-' * 60)
 
 
 tml_output = '{count:3} {region:25} {dataiso:3} {cases:8} {deaths:6} {percent:>8.2f}%'
 
+trenddict={'up': '\u2191', 'down': '\u2193'}
 
-def printrow(count, region, dataiso, cases, deaths, percent):
+def gettrend(trend):
+    if trend in trenddict:
+        result = trenddict[trend]
+    else:
+        result = ' '
+    return result
+
+def printrow(count, region, dataiso, cases, deaths, percent, trend=''):
+    print(gettrend(trend), end='')
     print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent))
 
-
-def printrowfilter(count, region, dataiso, cases, deaths, percent):
+def printrowfilter(count, region, dataiso, cases, deaths, percent, trend=''):
     print('\033[1;40;37m', end='')
+    print(gettrend(trend), end='')
     print(tml_output.format(count=count, region=region, dataiso=dataiso, cases=cases, deaths=deaths, percent=percent), end='')
     print('\033[m')
 
@@ -77,7 +103,7 @@ def save2json(total_list):
     # x[1:4] - cases,death,percent
     total_dict = {x[0]: x[1:4] for x in total_list}
     # write dictionary to file
-    # use json because it saves correct data and converts quotes. in the future it will allow the use of json.loads.
+    # use json because it saves correct data and converts quotes. in the future it will allow the use of json.load.
     with open(f'bbc.covid19.{now:%F}.json', 'w', encoding='utf-8') as f:
         json.dump(total_dict, f)
 
@@ -97,20 +123,15 @@ headers = {
 }
 
 response = requests.get(url_base, headers=headers)
-print(response.url)
-print(response.elapsed)
-print(response.encoding)
-print(response.status_code)
-
-for header in response.headers:
-    print(f'{header:40}: {response.headers[header]}')
-print()
+printdebugresponse(response)
 
 with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
     f.write(response.content)
 
 soap = BeautifulSoup(response.text, "html.parser")
 filter_tag_tbody = soap.findAll('tbody')
+total_dict_yesteday = readYesterday()
+yesterday = list(total_dict_yesteday.keys())
 total_list = []
 # filter_tag_tbody_text = filter_tag_tbody[0].text
 printheader()
@@ -136,10 +157,16 @@ if filter_tag_tbody[0]:
                 if cases != 0:
                     percent = round(deaths / cases * 100, 2)
                 total_list.append([region, cases, deaths, percent])
+                trend = ''
+                if region in yesterday:
+                    if count < yesterday.index(region):
+                        trend = 'up'
+                    elif count > yesterday.index(region):
+                        trend = 'down'
                 if region.upper() == 'RUSSIA':
-                    printrowfilter(count, region, dataISO, cases, deaths, percent)
+                    printrowfilter(count, region, dataISO, cases, deaths, percent, trend)
                 elif count < 10:
-                    printrow(count, region, dataISO, cases, deaths, percent)
+                    printrow(count, region, dataISO, cases, deaths, percent, trend)
                 count += 1
 printfooter()
 print(f'count: {len(total_list)}')
