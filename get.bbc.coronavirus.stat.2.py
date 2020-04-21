@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-import datetime
+from datetime import datetime, date, time, timezone
 import csv
 import json
 import requests
@@ -22,10 +22,10 @@ import sqlite3
 # 7 white
 # 9 default
 
-now = datetime.datetime.now()
+now = datetime.now()
+dbdate = datetime.combine(date.today(), time(4, 0))
 
-
-def createDB() -> object:
+def dbcreate() -> object:
     conn = sqlite3.connect('bbc.covid19.sqlite3')
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS regions(
@@ -43,15 +43,43 @@ def createDB() -> object:
                    UNIQUE(date_int, region_id),
                    FOREIGN KEY (region_id) REFERENCES regions(id)
                    )''')
+    return conn
+    # debug
+    # cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    # print('schema: ')
+    # pprint(cursor.fetchall())
+def dbinsertregion(conn, data):
+    ''' data=[region, regionISO]
 
-def dbinsert(conn, dataISO, data):
-    sql = ''' INSERT OR IGNORE INTO regions (region, regionISO)
-              VALUES(?,?)'''
-    cur = conn.cursor()
-    cur.execute(sql, (data['region'], dataISO))
-    regionid = cur.lastrowid
-    sql = ''' INSERT OR UPDATE INTO CasesADay (region_id, date_int, cases, deaths)
-              VALUES(?,?,?,?)'''
+        ['RUSSIA', 'RUS']
+    '''
+    cursor = conn.cursor()
+    cursor.execute('insert or ignore into regions(region,regionISO) values(?,?)', data)
+    region_id = cursor.lastrowid
+    cursor.close()
+    return region_id
+
+
+def dbinsert(conn, data):
+    '''data=[datetime, regions.region_id, cases, deaths]
+       [datetime, 0, 1000, 0]
+    '''
+    cursor = conn.cursor()
+    data[0] = data[0].replace(tzinfo=timezone.utc).timestamp()
+    cursor.execute('insert or replace into CasesADay(date_int,region_id,cases,deaths) values(?,?,?,?)',
+                   data)
+    cursor.close()
+    return cursor.lastrowid
+
+def dbtest():
+    cursor.execute('select * from regions')
+    print('from regions:')
+    pprint(cursor.fetchall())
+    cursor.execute(
+        'select datetime(date_int,"unixepoch"),* from CasesADAY LEFT JOIN regions ON CasesADAY.region_id=regions.id')
+    # cursor.execute('select datetime(date_int,"unixepoch"),* from CasesADAY')
+    print('from CasesADAY:')
+    pprint(cursor.fetchall()
 
 def printfooter():
     print('=' * 60)
@@ -91,6 +119,10 @@ def save2csv(total_dict):
         for k, v in total_dict.items():
             writer.writerow([k, v['region'], v['cases'], v['deaths'], v['percent']])
 
+
+# Main
+
+conn = dbcreate()
 
 url_base = 'https://www.bbc.com/news/world-51235105'
 headers = {
@@ -140,10 +172,12 @@ if filter_tag_tbody[0]:
                 deaths = 0
                 percent = 0
                 try:
-                    cases = int(tags_td[1].text.strip().replace(',', ''))
-                    deaths = int(tags_td[2].text.strip().replace(',', ''))
+                    cases = int(tags_td[2].text.strip().replace(',', ''))
+                    deaths = int(tags_td[1].text.strip().replace(',', ''))
                 except:
                     continue
+                regionid = dbinsertregion(conn, [region, dataISO])
+                dbinsert(conn, [dbdate, regionid, cases, deaths])
                 if cases != 0:
                     percent = round(deaths / cases * 100, 2)
                 total_list[dataISO] = {'region': region, 'cases': cases, 'deaths': deaths, 'percent': percent}
@@ -152,6 +186,7 @@ if filter_tag_tbody[0]:
                 elif count < 10:
                     printrow(dataISO, count, **total_list[dataISO])
                 count += 1
+conn.commit()
 printfooter()
 print(f'count: {len(total_list)}')
 cases_min = 1000
@@ -178,3 +213,4 @@ for row in list_sort_percent:
     count += 1
 printfooter()
 print(f'count: {len(list_sort_percent)}')
+conn.close()
