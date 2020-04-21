@@ -6,7 +6,7 @@ import requests
 import sqlite3
 
 """
-    The script get data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
+    The script gets data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
     It saves data to files of types json and csv.
 """
 # painting text
@@ -46,28 +46,6 @@ def readYesterday():
         pass
     return total_dict_before
 
-def createDB():
-    conn = sqlite3.connect('bbc.covid19.db')
-    cursor = conn.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS regions('
-                   'id INT PRIMARY KEY, '
-                   'region TEXT NOT NULL, '
-                   'regionISO TEXT,'
-                   'UNIQUE(regionISO)'
-                   ')')
-    cursor.execute('CREATE TABLE IF NOT EXISTS CasesADay('
-                   'date_int INT NOT NULL, '
-                   'region_id integer NOT NULL, '
-                   'cases INT,'
-                   'deaths INT'
-                   'FOREIGN KEY (region_id) PREFERENCES  regions(id)'
-                   ')')
-def dbinsert(conn, region):
-    sql = ''' INSERT OR IGNORE INTO regions (region, regionISO)
-              VALUES(?,?)'''
-    cur = conn.cursor()
-    cur.extcute(sql, region)
-    return cur.lastrowid
 
 def printfooter():
     print('=' * 60)
@@ -154,8 +132,8 @@ if filter_tag_tbody[0]:
                 deaths = 0
                 percent = 0
                 try:
-                    cases = int(tags_td[1].text.strip().replace(',', ''))
-                    deaths = int(tags_td[2].text.strip().replace(',', ''))
+                    cases = int(tags_td[2].text.strip().replace(',', ''))
+                    deaths = int(tags_td[1].text.strip().replace(',', ''))
                 except:
                     continue
                 if cases != 0:
