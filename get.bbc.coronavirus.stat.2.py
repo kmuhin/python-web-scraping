@@ -79,7 +79,7 @@ def dbtest():
         'select datetime(date_int,"unixepoch"),* from CasesADAY LEFT JOIN regions ON CasesADAY.region_id=regions.id')
     # cursor.execute('select datetime(date_int,"unixepoch"),* from CasesADAY')
     print('from CasesADAY:')
-    pprint(cursor.fetchall()
+    pprint(cursor.fetchall())
 
 def printfooter():
     print('=' * 60)
