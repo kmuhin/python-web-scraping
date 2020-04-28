@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date, time, timezone
 import csv
 import json
+from pprint import pprint
 import requests
 import sqlite3
 
@@ -55,7 +56,8 @@ def dbinsertregion(conn, data):
     '''
     cursor = conn.cursor()
     cursor.execute('insert or ignore into regions(region,regionISO) values(?,?)', data)
-    region_id = cursor.lastrowid
+    cursor.execute('select id from regions where region=? AND regionISO=?', data)
+    region_id = cursor.fetchall()[0][0]
     cursor.close()
     return region_id
 
@@ -71,15 +73,77 @@ def dbinsert(conn, data):
     cursor.close()
     return cursor.lastrowid
 
+def dbstatistic(conn):
+    cursor = conn.cursor()
+    print('DB statistic')
+    print(' number of regions: ', end='')
+    sqlstring = 'select count(1) from regions'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall()[0][0])
+
+    print(' number of records cases: ', end='')
+    sqlstring = 'select count(1) from CasesADAY'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall()[0][0])
+
+    print(' number of cases with incorrect region: ', end='')
+    sqlstring = 'SELECT count(1) FROM CasesADAY' \
+                ' WHERE NOT EXISTS' \
+                ' ( SELECT 1 FROM regions ' \
+                '   WHERE regions.id = CasesADAY.region_id )'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall()[0][0])
+
+    print(' TOP 10 CASES:')
+    sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
+                ' LEFT JOIN regions ON CasesADAY.region_id=regions.id GROUP BY region ORDER BY cases DESC LIMIT 10'
+    cursor.execute(sqlstring)
+    pprint([i[0] for i in cursor.description])
+    pprint(cursor.fetchall())
+
 def dbtest():
-    cursor.execute('select * from regions')
+    sqlstring = 'select max(id) from regions'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall())
+
+    sqlstring = 'select * from regions'
+    cursor.execute(sqlstring)
     print('from regions:')
     pprint(cursor.fetchall())
+
     cursor.execute(
         'select datetime(date_int,"unixepoch"),* from CasesADAY LEFT JOIN regions ON CasesADAY.region_id=regions.id')
     # cursor.execute('select datetime(date_int,"unixepoch"),* from CasesADAY')
     print('from CasesADAY:')
     pprint(cursor.fetchall())
+
+    sqlstring = 'INSERT INTO regions(region, regionISO)' \
+                ' SELECT "AAA", "A" ' \
+                ' WHERE NOT EXISTS (SELECT 1 from regions WHERE region="AAA" AND regioniso = "A");'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall())
+
+def dbcleanincoherent():
+    sqlstring = 'SELECT count(rowid) FROM CasesADAY' \
+                ' WHERE NOT EXISTS' \
+                ' ( SELECT 1 FROM regions ' \
+                '   WHERE regions.id = CasesADAY.region_id )'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall())
+
+    sqlstring = 'DELETE FROM CasesADAY ' \
+                ' WHERE NOT EXISTS' \
+                ' ( SELECT 1 FROM regions ' \
+                '  WHERE regions.id = CasesADAY.region_id )'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall())
+
+    sqlstring = 'SELECT count(rowid) FROM CasesADAY' \
+                ' WHERE NOT EXISTS' \
+                ' ( SELECT 1 FROM regions ' \
+                '   WHERE regions.id = CasesADAY.region_id )'
+    cursor.execute(sqlstring)
+    print(cursor.fetchall())
 
 def printfooter():
     print('=' * 60)
@@ -213,4 +277,5 @@ for row in list_sort_percent:
     count += 1
 printfooter()
 print(f'count: {len(list_sort_percent)}')
+dbstatistic(conn)
 conn.close()
