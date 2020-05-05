@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from datetime import datetime, date, time, timezone
+from datetime import datetime, timedelta, time, timezone
 import csv
 import json
 from pprint import pprint
@@ -7,7 +7,7 @@ import requests
 import sqlite3
 
 """
-    The script get data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
+    The script gets data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
     It saves data to files of types json and csv.
 """
 # painting text
@@ -24,7 +24,7 @@ import sqlite3
 # 9 default
 
 now = datetime.now()
-dbdate = datetime.combine(date.today(), time(4, 0))
+dbdate = datetime.combine(now, time(4, 0))
 
 def dbcreate() -> object:
     conn = sqlite3.connect('bbc.covid19.sqlite3')
@@ -45,6 +45,8 @@ def dbcreate() -> object:
                    FOREIGN KEY (region_id) REFERENCES regions(id)
                    )''')
     return conn
+
+
     # debug
     # cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     # print('schema: ')
@@ -73,6 +75,7 @@ def dbinsert(conn, data):
     cursor.close()
     return cursor.lastrowid
 
+
 def dbstatistic(conn):
     cursor = conn.cursor()
     print('DB statistic')
@@ -94,12 +97,13 @@ def dbstatistic(conn):
     cursor.execute(sqlstring)
     print(cursor.fetchall()[0][0])
 
-    print(' TOP 10 CASES:')
+    print('TOP 10 CASES:')
     sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
                 ' LEFT JOIN regions ON CasesADAY.region_id=regions.id GROUP BY region ORDER BY cases DESC LIMIT 10'
     cursor.execute(sqlstring)
     pprint([i[0] for i in cursor.description])
     pprint(cursor.fetchall())
+
 
 def dbtest():
     sqlstring = 'select max(id) from regions'
@@ -122,6 +126,7 @@ def dbtest():
                 ' WHERE NOT EXISTS (SELECT 1 from regions WHERE region="AAA" AND regioniso = "A");'
     cursor.execute(sqlstring)
     print(cursor.fetchall())
+
 
 def dbcleanincoherent():
     sqlstring = 'SELECT count(rowid) FROM CasesADAY' \
@@ -253,7 +258,7 @@ if filter_tag_tbody[0]:
 conn.commit()
 printfooter()
 print(f'count: {len(total_list)}')
-cases_min = 1000
+cases_min = 10000
 print('\nregions with cases > ', cases_min, ':')
 # select region where cases > cases_min
 list_sort_percent =[i for i in total_list.items() if i[1]['cases'] >= cases_min]

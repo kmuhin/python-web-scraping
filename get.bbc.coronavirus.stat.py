@@ -3,7 +3,7 @@ import datetime
 import csv
 import json
 import requests
-import sqlite3
+
 
 """
     The script gets data from bbc.com. Finds the data the cases of illness. It calculates the proportion of recovered.
@@ -37,6 +37,17 @@ def printdebugresponse(response):
 
 def readYesterday():
     yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+    filebefore = f'bbc.covid19.{yesterday:%F}.json'
+    total_dict_before = {}
+    try:
+        with open(filebefore, 'r', encoding='utf-8') as f:
+            total_dict_before=json.load(f)
+    except IOError:
+        pass
+    return total_dict_before
+
+def readBefore(date, days=1):
+    yesterday = date - datetime.timedelta(days=days)
     filebefore = f'bbc.covid19.{yesterday:%F}.json'
     total_dict_before = {}
     try:
@@ -112,7 +123,7 @@ with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
 
 soap = BeautifulSoup(response.text, "html.parser")
 filter_tag_tbody = soap.findAll('tbody')
-total_dict_yesteday = readYesterday()
+total_dict_yesteday = readBefore(now)
 yesterday = list(total_dict_yesteday.keys())
 total_list = []
 # filter_tag_tbody_text = filter_tag_tbody[0].text
