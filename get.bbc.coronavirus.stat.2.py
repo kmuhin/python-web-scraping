@@ -104,6 +104,21 @@ def dbstatistic(conn):
     pprint([i[0] for i in cursor.description])
     pprint(cursor.fetchall())
 
+    sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
+                ' LEFT JOIN regions ON CasesADAY.region_id=regions.id where regions.region="Russia"'
+    cursor.execute(sqlstring)
+    print()
+    print(f'{"datetime":20} {"cases":>6} {"deaths":>6} {"country":>10} {"delta":>5} {"rate":>5}')
+    deathsbefore = -1
+    for row in cursor.fetchall():
+        deaths = row[2]
+        cases = row[1]
+        if deathsbefore == -1:
+            deathsbefore = deaths
+        delta = deaths - deathsbefore
+        deathsbefore = deaths
+        rate = round(deaths / cases * 100, 2)
+        print(f'{row[0]:20} {cases:6} {deaths:6} {row[3]:>10} {delta:5} {rate:5}')
 
 def dbtest():
     sqlstring = 'select max(id) from regions'
@@ -241,7 +256,7 @@ if filter_tag_tbody[0]:
                 deaths = 0
                 percent = 0
                 try:
-                    cases = int(tags_td[2].text.strip().replace(',', ''))
+                    cases = int(tags_td[3].text.strip().replace(',', ''))
                     deaths = int(tags_td[1].text.strip().replace(',', ''))
                 except:
                     continue

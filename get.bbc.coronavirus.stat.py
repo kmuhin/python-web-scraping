@@ -143,7 +143,7 @@ if filter_tag_tbody[0]:
                 deaths = 0
                 percent = 0
                 try:
-                    cases = int(tags_td[2].text.strip().replace(',', ''))
+                    cases = int(tags_td[3].text.strip().replace(',', ''))
                     deaths = int(tags_td[1].text.strip().replace(',', ''))
                 except:
                     continue
