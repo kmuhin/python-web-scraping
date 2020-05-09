@@ -108,17 +108,22 @@ def dbstatistic(conn):
                 ' LEFT JOIN regions ON CasesADAY.region_id=regions.id where regions.region="Russia"'
     cursor.execute(sqlstring)
     print()
-    print(f'{"datetime":20} {"cases":>6} {"deaths":>6} {"country":>10} {"delta":>5} {"rate":>5}')
+    print(f'{"datetime":20} {"cases":>6} {"deaths":>6} {"country":>10} {"Cases":\u0394>7} {"Death":\u0394>7} {"rate":>5}')
     deathsbefore = -1
+    casesbefore = -1
     for row in cursor.fetchall():
         deaths = row[2]
         cases = row[1]
         if deathsbefore == -1:
             deathsbefore = deaths
-        delta = deaths - deathsbefore
+        if casesbefore == -1:
+            casesbefore = cases
+        Ddeaths = deaths - deathsbefore
+        Dcases = cases - casesbefore
         deathsbefore = deaths
+        casesbefore = cases
         rate = round(deaths / cases * 100, 2)
-        print(f'{row[0]:20} {cases:6} {deaths:6} {row[3]:>10} {delta:5} {rate:5}')
+        print(f'{row[0]:20} {cases:6} {deaths:6} {row[3]:>10} {Dcases:7} {Ddeaths:7} {rate:5}')
 
 def dbtest():
     sqlstring = 'select max(id) from regions'
