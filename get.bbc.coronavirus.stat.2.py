@@ -81,8 +81,8 @@ def dbstatisticcountry(conn, country):
                 ' LEFT JOIN regions ON CasesADAY.region_id=regions.id where regions.region=?'
     cursor.execute(sqlstring, [country])
     print()
-    print(
-        f'{"datetime":20} {"cases":>8} {"deaths":>6} {"country":>10} {"Cases":\u0394>7} {"Death":\u0394>7} {"rate":>5}')
+    # print(f'{"datetime":20} {"cases":>8} {"deaths":>6} {"country":>10} {"Cases":>7}\u0394 {"Death":>7}\u0394 {"rate":>5}')
+    print('{:20} {:>8} {:>6} {:>10} {:>7} {:>7} {:>5}'.format("Datetime", "Cases", "Deaths", "Country", "Cases\u0394", "Deaths\u0394", "%D/C"))
     deathsbefore = -1
     casesbefore = -1
     for row in cursor.fetchall():
