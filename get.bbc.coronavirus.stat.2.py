@@ -130,6 +130,7 @@ def dbstatistic(conn):
 
     dbstatisticcountry(conn, 'Russia')
     dbstatisticcountry(conn, 'US')
+    dbstatisticcountry(conn, 'Germany')
     cursor.close()
 
 def dbtest():
