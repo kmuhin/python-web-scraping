@@ -75,6 +75,30 @@ def dbinsert(conn, data):
     cursor.close()
     return cursor.lastrowid
 
+def dbstatisticcountry(conn, country):
+    cursor = conn.cursor()
+    sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
+                ' LEFT JOIN regions ON CasesADAY.region_id=regions.id where regions.region=?'
+    cursor.execute(sqlstring, [country])
+    print()
+    print(
+        f'{"datetime":20} {"cases":>8} {"deaths":>6} {"country":>10} {"Cases":\u0394>7} {"Death":\u0394>7} {"rate":>5}')
+    deathsbefore = -1
+    casesbefore = -1
+    for row in cursor.fetchall():
+        deaths = row[2]
+        cases = row[1]
+        if deathsbefore == -1:
+            deathsbefore = deaths
+        if casesbefore == -1:
+            casesbefore = cases
+        Ddeaths = deaths - deathsbefore
+        Dcases = cases - casesbefore
+        deathsbefore = deaths
+        casesbefore = cases
+        rate = round(deaths / cases * 100, 2)
+        print(f'{row[0]:20} {cases:8} {deaths:6} {row[3]:>10} {Dcases:7} {Ddeaths:7} {rate:5}')
+    cursor.close()
 
 def dbstatistic(conn):
     cursor = conn.cursor()
@@ -104,26 +128,9 @@ def dbstatistic(conn):
     pprint([i[0] for i in cursor.description])
     pprint(cursor.fetchall())
 
-    sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
-                ' LEFT JOIN regions ON CasesADAY.region_id=regions.id where regions.region="Russia"'
-    cursor.execute(sqlstring)
-    print()
-    print(f'{"datetime":20} {"cases":>6} {"deaths":>6} {"country":>10} {"Cases":\u0394>7} {"Death":\u0394>7} {"rate":>5}')
-    deathsbefore = -1
-    casesbefore = -1
-    for row in cursor.fetchall():
-        deaths = row[2]
-        cases = row[1]
-        if deathsbefore == -1:
-            deathsbefore = deaths
-        if casesbefore == -1:
-            casesbefore = cases
-        Ddeaths = deaths - deathsbefore
-        Dcases = cases - casesbefore
-        deathsbefore = deaths
-        casesbefore = cases
-        rate = round(deaths / cases * 100, 2)
-        print(f'{row[0]:20} {cases:6} {deaths:6} {row[3]:>10} {Dcases:7} {Ddeaths:7} {rate:5}')
+    dbstatisticcountry(conn, 'Russia')
+    dbstatisticcountry(conn, 'US')
+    cursor.close()
 
 def dbtest():
     sqlstring = 'select max(id) from regions'
@@ -146,6 +153,7 @@ def dbtest():
                 ' WHERE NOT EXISTS (SELECT 1 from regions WHERE region="AAA" AND regioniso = "A");'
     cursor.execute(sqlstring)
     print(cursor.fetchall())
+    cursor.close()
 
 
 def dbcleanincoherent():
@@ -169,6 +177,7 @@ def dbcleanincoherent():
                 '   WHERE regions.id = CasesADAY.region_id )'
     cursor.execute(sqlstring)
     print(cursor.fetchall())
+    cursor.close()
 
 def printfooter():
     print('=' * 60)
