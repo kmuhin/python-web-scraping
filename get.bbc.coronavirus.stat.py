@@ -24,6 +24,7 @@ import requests
 # up arrow \u2191, down \u2193
 
 now = datetime.datetime.now()
+workdir = 'bbc.covid19/'
 
 def printdebugresponse(response):
     print(response.url)
@@ -37,7 +38,7 @@ def printdebugresponse(response):
 
 def readYesterday():
     yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
-    filebefore = f'bbc.covid19.{yesterday:%F}.json'
+    filebefore = f'{workdir}bbc.covid19.{yesterday:%F}.json'
     total_dict_before = {}
     try:
         with open(filebefore, 'r', encoding='utf-8') as f:
@@ -48,7 +49,7 @@ def readYesterday():
 
 def readBefore(date, days=1):
     yesterday = date - datetime.timedelta(days=days)
-    filebefore = f'bbc.covid19.{yesterday:%F}.json'
+    filebefore = f'{workdir}bbc.covid19.{yesterday:%F}.json'
     total_dict_before = {}
     try:
         with open(filebefore, 'r', encoding='utf-8') as f:
@@ -97,13 +98,13 @@ def save2json(total_list):
     total_dict = {x[0]: x[1:4] for x in total_list}
     # write dictionary to file
     # use json because it saves correct data and converts quotes. in the future it will allow the use of json.load.
-    with open(f'bbc.covid19.{now:%F}.json', 'w', encoding='utf-8') as f:
+    with open(f'{workdir}bbc.covid19.{now:%F}.json', 'w', encoding='utf-8') as f:
         json.dump(total_dict, f)
 
 
 def save2csv(total_list):
     # write list to csv
-    with open(f'bbc.covid19.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
+    with open(f'{workdir}bbc.covid19.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f, delimiter=';')
         writer.writerow(['Region', 'Cases', 'Deaths', 'percent'])
         for row in total_list:
@@ -118,7 +119,7 @@ headers = {
 response = requests.get(url_base, headers=headers)
 # printdebugresponse(response)
 
-with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
+with open(f'{workdir}/bbc.covid19.{now:%F}.html', 'wb') as f:
     f.write(response.content)
 
 soap = BeautifulSoup(response.text, "html.parser")

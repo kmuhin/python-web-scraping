@@ -25,9 +25,10 @@ import sqlite3
 
 now = datetime.now()
 dbdate = datetime.combine(now, time(4, 0))
+workdir = 'bbc.covid19/'
 
 def dbcreate() -> object:
-    conn = sqlite3.connect('bbc.covid19.sqlite3')
+    conn = sqlite3.connect(workdir + 'bbc.covid19.sqlite3')
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS regions(
                    id INTEGER PRIMARY KEY, 
@@ -206,13 +207,13 @@ def printrowfilter(dataISO, count, **keywords):
 
 
 def save2json(total_dict):
-    with open(f'bbc.covid19.2.{now:%F}.json', 'w', encoding='utf-8') as f:
+    with open(f'{workdir}bbc.covid19.2.{now:%F}.json', 'w', encoding='utf-8') as f:
         json.dump(total_dict, f)
 
 
 def save2csv(total_dict):
     # write list to csv
-    with open(f'bbc.covid19.2.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
+    with open(f'{workdir}bbc.covid19.2.{now:%F}.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f, delimiter=';')
         writer.writerow(['ISO', 'Region', 'Cases', 'Deaths', 'percent'])
         for k, v in total_dict.items():
@@ -238,7 +239,7 @@ for header in response.headers:
     print(f'{header:40}: {response.headers[header]}')
 print()
 
-with open(f'bbc.covid19.{now:%F}.html', 'wb') as f:
+with open(f'{workdir}bbc.covid19.{now:%F}.html', 'wb') as f:
     f.write(response.content)
 
 soap = BeautifulSoup(response.text, "html.parser")
