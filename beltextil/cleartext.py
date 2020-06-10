@@ -2,13 +2,11 @@ from bs4 import BeautifulSoup
 import requests
 import urllib
 
+__version__ = '1.0'
+
 # html navigation
 # save picture from url to file
 # string replaces
-
-# print("Content-type: text/html")
-# print()
-# print("<h1>Hello world!</h1>")
 
 url = 'https://www.beltextil.ru/catalog/1100-kpb-15-sp-valeri'
 headers = {
@@ -23,14 +21,14 @@ def remove_characters(value, deletechars):
 
 def getinfofromurl(url):
     data = {}
+    data['attrs'] = {}
+    data['price'] = {}
     response = requests.get(url, headers=headers)
     # debug
     with open(f'tmp.html', 'wb') as f:
             f.write(response.content)
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    print(soup.html.head.title.text)
-    print()
     filename = remove_characters(soup.html.head.title.text, '\/:*?"<>|')+'.jpg'
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
@@ -45,8 +43,7 @@ def getinfofromurl(url):
 
     for child in attributes:
         if child.name:
-            print(f'{child.dt.text:20} {child.dd.text}')
-            data[child.dt.text] = child.dd.text
+            data['attrs'][child.dt.text] = child.dd.text
 
     # html - body - div.document - div.main - div.product-view - div.info - div.price-helper
     pricehelper = info.find('div', attrs={'class': 'price-helper'})
@@ -56,12 +53,7 @@ def getinfofromurl(url):
     # чищу мусор из строк. получаю чистые числа
     number = number.replace('В наличии: ', '').replace(' шт.', '')
     price = price.replace('Цена: ', '').replace(' р.', '').replace(' ', '')
-    data['Цена'] = price
-    data['Количество'] = number
-    data['url'] = url
-    print(price, 'р')
-    print(number)
-    print(url)
+    data['price']={'Цена': price, 'Количество': number, 'url': url}
     return data
 
 def info(url):
@@ -69,14 +61,17 @@ def info(url):
     for i in data:
         print(f'{i:20} {data[i]}')
 
-info('https://www.beltextil.ru/catalog/14s80-shr-v-up-215148-kpb-kvartet-ris-7-cv-12-korall')
+def main():
+    info('https://www.beltextil.ru/catalog/14s80-shr-v-up-215148-kpb-kvartet-ris-7-cv-12-korall')
+    while True:
+        try:
+            url = input('type url or exit: ')
+            if url.upper() in ['EXIT', 'QUIT']:
+                break
+            info(url)
+            print()
+        except requests.exceptions.MissingSchema:
+            print('Invalid URL. Try again.')
 
-while True:
-    try:
-        url = input('type url or exit: ')
-        if url.upper() in ['EXIT', 'QUIT']:
-            break
-        info(url)
-        print()
-    except requests.exceptions.MissingSchema:
-        print('Invalid URL. Try again.')
+if __name__ == '__main__':
+    main()
