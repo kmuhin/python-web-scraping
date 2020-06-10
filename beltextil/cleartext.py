@@ -73,9 +73,10 @@ info('https://www.beltextil.ru/catalog/14s80-shr-v-up-215148-kpb-kvartet-ris-7-c
 
 while True:
     try:
-        url = input('url: ')
-        if url.upper() in ['EXIT', '^D', '^C', 'QUIT']:
+        url = input('type url or exit: ')
+        if url.upper() in ['EXIT', 'QUIT']:
             break
-        info(input())
-    except:
-        print('error url')
+        info(url)
+        print()
+    except requests.exceptions.MissingSchema:
+        print('Invalid URL. Try again.')
