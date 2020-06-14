@@ -1,17 +1,23 @@
+#!/usr/bin/env python
+
+
 from bs4 import BeautifulSoup
 import configparser
 from pathlib import Path
 import requests
 import urllib
+import os
+import logging, sys
 
-__version__ = '1.0'
+
+__version__ = '1.3'
 
 # module
 # html navigation
 # save picture from url to file
 # string replaces
 
-
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:45.0) Gecko/20100101 Firefox/45.0'
 }
@@ -20,13 +26,17 @@ workdir = Path(__file__).parent.absolute()
 workfile = Path(__file__).absolute()
 
 config = configparser.ConfigParser()
-configname = str(workdir) + '\\' + workfile.stem + '.ini'
+#configname = str(workdir) + '\\' + workfile.stem + '.ini'
+configname = os.path.join(str(workdir), workfile.stem + '.ini')
+logging.debug('ini file:', configname)
 config.read(configname)
 DataKeysForPrice = ['Артикул']
 
-pathpictures = ''
+pathpictures = str(workdir)
+rewritepicture = False
 try:
-    pathpictures = config['DEFAULT']['pathpictures'].strip("'")
+    pathpictures = config['DEFAULT']['pathpictures'].strip("'").strip('"')
+    rewritepicture = config['DEFAULT'].getboolean('rewritepictures')
 except KeyError:
     pass
 
@@ -37,14 +47,13 @@ def remove_characters(value, deletechars):
     return value;
 
 
+
 def download_file_rewrite(url, filename='', path='', rewrite=False):
-    if path and not path.endswith('\\'):
-        path += '\\'
     if not Path(path).is_dir():
         path = ''
     if not filename:
         filename = url.split('/')[-1]
-    local_filename = path + filename
+    local_filename = os.path.join(path,filename)
     if Path(local_filename).is_file() and not rewrite:
         return local_filename
     # NOTE the stream=True parameter below
@@ -78,7 +87,7 @@ def getinfofromurl(url):
     picture = soup.find('div', attrs={'class': 'front-image'})
     picture_url = picture.a.attrs['href']
     # urllib.request.urlretrieve(picture_url, pathpictures+filename)
-    filename = download_file_rewrite(picture_url, filename=filename, path=pathpictures)
+    filename = download_file_rewrite(picture_url, path=pathpictures, rewrite=rewritepicture)
     # html - body - div.document - div.main - div.product-view - div.info
     info = soup.find('div', attrs={'class': 'info'})
     attributes = info.find('div', attrs={'class': 'attributes'})
@@ -121,9 +130,6 @@ def main() -> object:
         except requests.exceptions.MissingSchema:
             print('Invalid URL. Try again.')
 
-
-if __name__ == '__main__':
-    main()
 
 if __name__ == '__main__':
     main()
