@@ -7,6 +7,8 @@ import os
 import re
 import sys
 from datetime import datetime
+
+
 from pathlib import Path
 from shutil import copyfile
 from string import Template
@@ -15,7 +17,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 
-__version__ = '1.7'
+__version__ = '1.8'
 
 # module
 # html navigation
@@ -44,60 +46,69 @@ logging.debug('ini file:' + configname)
 DataKeysForPrice = ['Артикул']
 
 # set default values before read config
-pathpictures = str(workdir)
-rewritepicture = False
-textoverimage = False
-textbottomimage = True
-templatetextbottom = '$design$delim$color'
-templatetextover = '$design\n$color'
-colortextbottom = 'black'
-colortextover = 'white'
-fontsizebottom = 45
-fontsizeover = 45
-imageresize = False
-imageresizesize = (800, 600)
-imagecrop = False
-imagecropsize = (800, 600)
+PathImage: str = str(workdir)
+RewriteDownloadedImage: bool = False
+TextOverImage: bool = False
+TextBottomImage: bool = True
+TemplateTextBottom: str = '$design$delim$color'
+TemplateTextOver: str = '$design\n$color'
+ColorTextBottom: str = 'black'
+ColorTextOver: str = 'white'
+FontSizeBottom: int = 45
+FontSizeOver: int = 45
+ImageResize: bool = False
+ImageResizeSize = (800, 600)
+ImageCrop: bool = False
+ImageCropSize = (800, 600)
 # read config file
-try:
-    config.read(configname)
-    pathpictures = config['DEFAULT']['pathpictures'].strip("'").strip('"')
-    rewritepicture = config['DEFAULT'].getboolean('rewritepictures')
-    textoverimage = config['DEFAULT'].getboolean('textoverimage')
-    textbottomimage = config['DEFAULT'].getboolean('textbottomimage')
-    templatetextbottom = config['DEFAULT']['templatetextbottom']
-    templatetextover = config['DEFAULT']['templatetextover']
-    colortextbottom = config['DEFAULT']['colortextbottom']
-    colortextover = config['DEFAULT']['colortextover']
-    fontsizebottom = int(config['DEFAULT']['fontsizebottom'])
-    fontsizeover = int(config['DEFAULT']['fontsizeover'])
-
-    imageresize = config['IMAGETRANSFORM'].getboolean('imageresize')
-    imagecrop = config['IMAGETRANSFORM'].getboolean('imagecrop')
-    imagecropsize = config['IMAGETRANSFORM']['imagecropsize']
-    imagecropsize = tuple(map(int, imagecropsize.split(',')))
-    imageresizesize = config['IMAGETRANSFORM']['imageresizesize']
-    imageresizesize = tuple(map(int, imageresizesize.split(',')))
-except KeyError:
-    pass
-
-logging.debug('template string: ' + templatetextbottom)
+config.read(configname)
+PathImage = config.get('DEFAULT', 'pathImage', fallback=PathImage).strip("'").strip('"')
+RewriteDownloadedImage = config.getboolean('DEFAULT', 'RewriteDownloadedImage', fallback=RewriteDownloadedImage)
+TextOverImage = config.getboolean('DEFAULT', 'textoverimage', fallback=TextOverImage)
+TextBottomImage = config.getboolean('DEFAULT', 'textbottomimage', fallback=TextBottomImage)
+TemplateTextBottom = config.get('DEFAULT', 'templatetextbottom', fallback=TemplateTextBottom)
+TemplateTextOver = config.get('DEFAULT', 'templatetextover', fallback=TemplateTextOver)
+ColorTextBottom = config.get('DEFAULT', 'colortextbottom', fallback=ColorTextBottom)
+ColorTextOver = config.get('DEFAULT', 'colortextover', fallback=ColorTextOver)
+FontSizeBottom = int(config.get('DEFAULT', 'fontsizebottom', fallback=FontSizeBottom))
+FontSizeOver = int(config.get('DEFAULT', 'fontsizeover', fallback=FontSizeOver))
+ImageResize = config.getboolean('IMAGETRANSFORM', 'imageresize', fallback=ImageResize)
+ImageCrop = config.getboolean('IMAGETRANSFORM', 'imagecrop', fallback=ImageCrop)
+if config.get('IMAGETRANSFORM', 'imagecropsize', fallback=None):
+    ImageCropSize = config.get('IMAGETRANSFORM', 'imagecropsize')
+    ImageCropSize = tuple(map(int, ImageCropSize.split(',')))
+if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
+    ImageResizeSize = config.get('IMAGETRANSFORM', 'imageresizesize')
+    ImageResizeSize = tuple(map(int, ImageResizeSize.split(',')))
 
 
-def logurl(title, url):
+logging.debug('template string: ' + TemplateTextBottom)
+
+
+def LogUrl(title, url):
     now = datetime.now()
-    with open(urlfilelogname, 'a+') as f:
+    with open(urlfilelogname, 'a+', encoding='utf-8') as f:
         f.write(f'{now:%Y-%m-%d %H:%M};{title};{url}\n')
 
 
-def imagestamp(filename, message, border=False):
-    image = Image.open(filename)
+def StampTextOverImage(file_name, message, border=False):
+    """
+    the function draws text over the image from file
+
+    :type message: str
+    :type border: bool
+    :param border: draw border around text
+    :param message: text for drawing
+    :type file_name: str
+    :param file_name: name of file of image
+    """
+    image = Image.open(file_name)
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=fontsizeover)
+    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=FontSizeOver)
 
     (x, y) = (10, 10)
     # border
-    color = colortextover
+    color = ColorTextOver
     shadowcolor = 'yellow'
     if border:
         draw.text((x - 1, y - 1), message, font=font, fill=shadowcolor)
@@ -106,45 +117,54 @@ def imagestamp(filename, message, border=False):
         draw.text((x, y + 1), message, font=font, fill=shadowcolor)
     # text
     draw.text((x, y), message, color, font)
-    image.save(filename)
+    image.save(file_name)
 
 
-def imagestampextend(filename, message, border=False, resizesize=(), crop=False):
-    image = Image.open(filename)
-    fontsize = fontsizebottom
-    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=fontsize)
+def StampTextBottomImage(file_name, message, border=False, resize_size=(), crop=False):
+    """
+    the function draws text below the image from file
+
+    :param file_name: name of file of image
+    :param crop: crop image
+    :param border: border around text
+    :param message: text for drawing
+    :type resize_size: tuple
+    """
+    image = Image.open(file_name)
+    font_size = FontSizeBottom
+    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=font_size)
     if message.count('\n') == 0:
-        bottomhight = fontsize + 20
+        bottomhight = font_size + 20
     else:
-        bottomhight = (fontsize + 5) * (1 + message.count('\n'))
-    imagewidth, imageheight = image.size
+        bottomhight = (font_size + 5) * (1 + message.count('\n'))
+    image_width, image_height = image.size
     # resize image
-    if imageresize:
+    if ImageResize:
         logging.debug('before resize: ' + str(image.size))
-        resize = resizesize
+        resize = resize_size
         logging.debug('desired size: ' + str(resize))
         image.thumbnail(resize, Image.ANTIALIAS)
         logging.debug('after resize, before crop: ' + str(image.size))
-        imagewidth, imageheight = image.size
+        image_width, image_height = image.size
         # crop image
         if crop:
-            indentwidth = int((imagecropsize[0] - imagewidth) / 2)
+            indentwidth = int((ImageCropSize[0] - image_width) / 2)
             if indentwidth < 0:
                 indentwidth = 0
-            indentheight = int((imagecropsize[1] - imageheight) / 2)
+            indentheight = int((ImageCropSize[1] - image_height) / 2)
             if indentheight < 0:
                 indentheight = 0
-            newimage = Image.new('RGB', imagecropsize, (200, 200, 200))
+            newimage = Image.new('RGB', ImageCropSize, (200, 200, 200))
             logging.debug('indentwidth: ' + str(indentwidth))
             newimage.paste(image, (indentwidth, indentheight))
             image = newimage
             logging.debug('after crop: ' + str(image.size))
         #          image.show()
-    imagewidth, imageheight = image.size
-    background = Image.new('RGB', (imagewidth, imageheight + bottomhight), (255, 255, 255))
+    image_width, image_height = image.size
+    background = Image.new('RGB', (image_width, image_height + bottomhight), (255, 255, 255))
     draw = ImageDraw.Draw(background)
-    (x, y) = (10, imageheight + 10)
-    color = colortextbottom
+    (x, y) = (10, image_height + 10)
+    color = ColorTextBottom
     shadowcolor = 'yellow'
     # text outline
     if border:
@@ -156,7 +176,7 @@ def imagestampextend(filename, message, border=False, resizesize=(), crop=False)
     draw.text((x, y), message, color, font)
     # add existed image to new
     background.paste(image, (0, 0))
-    background.save(filename)
+    background.save(file_name)
 
 
 def remove_characters(value, deletechars):
@@ -184,7 +204,12 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     return local_filename
 
 
-def getinfofromurl(url):
+def GetInfoFromUrl(url: str) -> dict:
+    """
+
+    :param url: str
+    :return: dict['attrs', 'price']
+    """
     #  make schema dictionary
     data = dict.fromkeys(('attrs', 'price'))
     try:
@@ -201,15 +226,15 @@ def getinfofromurl(url):
     filename = remove_characters(soup.html.head.title.text, '\/:*?"<>|') + '.jpg'
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
-    picture = soup.find('div', attrs={'class': 'front-image'})
-    picture_url = picture.a.attrs['href']
-    filename = download_file_rewrite(picture_url, path=pathpictures, rewrite=rewritepicture)
+    image = soup.find('div', attrs={'class': 'front-image'})
+    image_url = image.a.attrs['href']
+    filename = download_file_rewrite(image_url, path=PathImage, rewrite=RewriteDownloadedImage)
     logging.debug(filename)
     # html - body - div.document - div.main - div.product-view - div.info
-    info = soup.find('div', attrs={'class': 'info'})
+    div_info = soup.find('div', attrs={'class': 'info'})
     data['price']['Заголовок'] = soup.html.head.title.text
-    logurl(data['price']['Заголовок'], url)
-    attributes = info.find('div', attrs={'class': 'attributes'})
+    LogUrl(data['price']['Заголовок'], url)
+    attributes = div_info.find('div', attrs={'class': 'attributes'})
 
     # html - body - div.document - div.main - div.product-view - div.attributes
     for child in attributes:
@@ -220,10 +245,10 @@ def getinfofromurl(url):
                 data['attrs'][child.dt.text] = child.dd.text
 
     # html - body - div.document - div.main - div.product-view - div.info - div.price-helper
-    pricehelper = info.find('div', attrs={'class': 'price-helper'})
+    div_pricehelper = div_info.find('div', attrs={'class': 'price-helper'})
     # price.price-helper - table
-    number = pricehelper.table.contents[0].td.text.strip()
-    price = pricehelper.table.contents[1].td.div.text.strip()
+    number = div_pricehelper.table.contents[0].td.text.strip()
+    price = div_pricehelper.table.contents[1].td.div.text.strip()
     # чищу мусор из строк. получаю чистые числа
     number = number.replace('В наличии: ', '').replace(' шт.', '')
     price = price.replace('Цена: ', '').replace(' р.', '').replace(' ', '')
@@ -245,26 +270,27 @@ def getinfofromurl(url):
         delim = ''
     # message=f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}\n{messagedata["состав"]}\n{messagedata["размер"]}'
     data['price'] = {**data['price'],
-                     'Артикул с текстом': f'{data["price"]["Артикул"]} {messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
+                     'Артикул с текстом': f'{data["price"].get("Артикул","")} '
+                     f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
     # text at the image
-    if textoverimage:
-        message = Template(templatetextover).substitute(design=messagedata["рисунок"], delim=delim,
+    if TextOverImage:
+        message = Template(TemplateTextOver).substitute(design=messagedata["рисунок"], delim=delim,
                                                         color=messagedata["цвет"], material=messagedata["состав"],
                                                         size=messagedata["размер"])
-        imagestamp(filenametext, message)
-    if textbottomimage:
-        message = Template(templatetextbottom).substitute(design=messagedata["рисунок"], delim=delim,
+        StampTextOverImage(filenametext, message)
+    if TextBottomImage:
+        message = Template(TemplateTextBottom).substitute(design=messagedata["рисунок"], delim=delim,
                                                           color=messagedata["цвет"], material=messagedata["состав"],
                                                           size=messagedata["размер"])
-        imagestampextend(filenametext, message, resizesize=imageresizesize, crop=imagecrop)
+        StampTextBottomImage(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
     data['price'] = {**data['price'], 'Картинка с текстом': filenametext}
     return data
 
 
 def info(url):
-    data = getinfofromurl(url)
+    data = GetInfoFromUrl(url)
     for i in data:
-        print(f'{i:20} {data[i]}')
+        print(f'{i:10} {data[i]}')
 
 
 def main() -> object:
