@@ -8,7 +8,6 @@ import re
 import sys
 from datetime import datetime
 
-
 from pathlib import Path
 from shutil import copyfile
 from string import Template
@@ -81,7 +80,6 @@ if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
     ImageResizeSize = config.get('IMAGETRANSFORM', 'imageresizesize')
     ImageResizeSize = tuple(map(int, ImageResizeSize.split(',')))
 
-
 logging.debug('template string: ' + TemplateTextBottom)
 
 
@@ -89,6 +87,12 @@ def LogUrl(title, url):
     now = datetime.now()
     with open(urlfilelogname, 'a+', encoding='utf-8') as f:
         f.write(f'{now:%Y-%m-%d %H:%M};{title};{url}\n')
+
+
+def SearchInLogUrl(text):
+    with open(urlfilelogname, 'r', encoding='utf-8') as f:
+        logging.debug('search string: ' + text)
+        return [line.split(';') for line in f if text in line]
 
 
 def StampTextOverImage(file_name, message, border=False):
@@ -137,7 +141,6 @@ def StampTextBottomImage(file_name, message, border=False, resize_size=(), crop=
         bottomhight = font_size + 20
     else:
         bottomhight = (font_size + 5) * (1 + message.count('\n'))
-    image_width, image_height = image.size
     # resize image
     if ImageResize:
         logging.debug('before resize: ' + str(image.size))
@@ -223,7 +226,6 @@ def GetInfoFromUrl(url: str) -> dict:
         f.write(response.content)
     #
     soup = BeautifulSoup(response.text, 'html.parser')
-    filename = remove_characters(soup.html.head.title.text, '\/:*?"<>|') + '.jpg'
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
     image = soup.find('div', attrs={'class': 'front-image'})
@@ -270,7 +272,7 @@ def GetInfoFromUrl(url: str) -> dict:
         delim = ''
     # message=f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}\n{messagedata["состав"]}\n{messagedata["размер"]}'
     data['price'] = {**data['price'],
-                     'Артикул с текстом': f'{data["price"].get("Артикул","")} '
+                     'Артикул с текстом': f'{data["price"].get("Артикул", "")} '
                      f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
     # text at the image
     if TextOverImage:
@@ -293,8 +295,9 @@ def info(url):
         print(f'{i:10} {data[i]}')
 
 
-def main() -> object:
+def main():
     info('https://www.beltextil.ru/catalog/14s80-shr-v-up-215148-kpb-kvartet-ris-7-cv-12-korall')
+
 
 '''    while True:
         try:
