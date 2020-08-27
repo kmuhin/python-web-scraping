@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Copyright 2020 by Konstantin Mukhin Al.
+
 
 import configparser
 import logging
@@ -16,7 +18,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
 
-__version__ = '1.8'
+__version__ = '1.10'
 
 # module
 # html navigation
@@ -27,7 +29,7 @@ __version__ = '1.8'
 # add text at the bottom of image
 
 
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 headers = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:45.0) Gecko/20100101 Firefox/45.0'
 }
@@ -45,7 +47,7 @@ logging.debug('ini file:' + configname)
 DataKeysForPrice = ['Артикул']
 
 # set default values before read config
-PathImage: str = str(workdir)
+PathImage: str = 'pictures'
 RewriteDownloadedImage: bool = False
 TextOverImage: bool = False
 TextBottomImage: bool = True
@@ -61,7 +63,7 @@ ImageCrop: bool = False
 ImageCropSize = (800, 600)
 # read config file
 config.read(configname)
-PathImage = config.get('DEFAULT', 'pathImage', fallback=PathImage).strip("'").strip('"')
+PathImage = config.get('DEFAULT', 'PathImage', fallback=PathImage).strip("'").strip('"')
 RewriteDownloadedImage = config.getboolean('DEFAULT', 'RewriteDownloadedImage', fallback=RewriteDownloadedImage)
 TextOverImage = config.getboolean('DEFAULT', 'textoverimage', fallback=TextOverImage)
 TextBottomImage = config.getboolean('DEFAULT', 'textbottomimage', fallback=TextBottomImage)
@@ -83,19 +85,33 @@ if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
 logging.debug('template string: ' + TemplateTextBottom)
 
 
-def LogUrl(title, url):
+def log_url(title, url):
     now = datetime.now()
     with open(urlfilelogname, 'a+', encoding='utf-8') as f:
         f.write(f'{now:%Y-%m-%d %H:%M};{title};{url}\n')
 
 
-def SearchInLogUrl(text):
+def search_in_log_url(text):
+    """
+        ищет информацию в файле, возвращает список строк
+        дата, артикул, ссылка, артикул простой, имя изображения.
+    :param text: text for search
+    :return: list of lists
+    """
+
+    # remove duplicated spaces
+    def TextCooked(string):
+        string = string.strip()
+        string = re.sub('[",]', ' ', string)
+        string = re.sub('см', '', string)
+        return re.sub(' +', ' ', string)
+
     with open(urlfilelogname, 'r', encoding='utf-8') as f:
         logging.debug('search string: ' + text)
-        return [line.split(';') for line in f if text in line]
+        return [line.split(';') for line in f if TextCooked(text) in TextCooked(line)]
 
 
-def StampTextOverImage(file_name, message, border=False):
+def stamp_text_over_image(file_name, message, border=False):
     """
     the function draws text over the image from file
 
@@ -124,7 +140,7 @@ def StampTextOverImage(file_name, message, border=False):
     image.save(file_name)
 
 
-def StampTextBottomImage(file_name, message, border=False, resize_size=(), crop=False):
+def stamp_text_bottom_image(file_name, message, border=False, resize_size=(), crop=False):
     """
     the function draws text below the image from file
 
@@ -162,7 +178,7 @@ def StampTextBottomImage(file_name, message, border=False, resize_size=(), crop=
             newimage.paste(image, (indentwidth, indentheight))
             image = newimage
             logging.debug('after crop: ' + str(image.size))
-        #          image.show()
+            # image.show()
     image_width, image_height = image.size
     background = Image.new('RGB', (image_width, image_height + bottomhight), (255, 255, 255))
     draw = ImageDraw.Draw(background)
@@ -182,7 +198,10 @@ def StampTextBottomImage(file_name, message, border=False, resize_size=(), crop=
     background.save(file_name)
 
 
-def remove_characters(value, deletechars):
+def remove_characters(value, deletechars='\/:*?"<>|'):
+    """
+    used to remove incorrect symbols for file names
+    """
     for c in deletechars:
         value = value.replace(c, '')
     return value
@@ -194,6 +213,7 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     if not filename:
         filename = url.split('/')[-1]
     local_filename = os.path.join(path, filename)
+    local_filename = str(Path(local_filename).absolute())
     if Path(local_filename).is_file() and not rewrite:
         return local_filename
     # NOTE the stream=True parameter below
@@ -207,11 +227,13 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     return local_filename
 
 
-def GetInfoFromUrl(url: str) -> dict:
+def get_info_from_url(url):
     """
-
-    :param url: str
-    :return: dict['attrs', 'price']
+    возвращаю data
+    data['attrs'] = {}
+    data['price'] = {}
+    :param url: ссылка
+    :return: dict
     """
     #  make schema dictionary
     data = dict.fromkeys(('attrs', 'price'))
@@ -221,31 +243,33 @@ def GetInfoFromUrl(url: str) -> dict:
         return data
     data['attrs'] = {}
     data['price'] = {}
-    # debug save html
-    with open(f'tmp.html', 'wb') as f:
-        f.write(response.content)
+    # debugging. save received content.
+    # with open(f'tmp.html', 'wb') as f:
+    #    f.write(response.content)
     #
     soup = BeautifulSoup(response.text, 'html.parser')
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
+    # получаю ссылку на изображение
     image = soup.find('div', attrs={'class': 'front-image'})
     image_url = image.a.attrs['href']
-    filename = download_file_rewrite(image_url, path=PathImage, rewrite=RewriteDownloadedImage)
-    logging.debug(filename)
+    ## filename = download_file_rewrite(image_url, path=PathImage, rewrite=RewriteDownloadedImage)
+    ## logging.debug(filename)
+    # Получаю заголовок head
+    data['price']['Заголовок'] = re.sub(' +', ' ', soup.html.head.title.text)
+    # получаю атрибуты из контейнера <div class=info>
     # html - body - div.document - div.main - div.product-view - div.info
     div_info = soup.find('div', attrs={'class': 'info'})
-    data['price']['Заголовок'] = soup.html.head.title.text
-    LogUrl(data['price']['Заголовок'], url)
-    attributes = div_info.find('div', attrs={'class': 'attributes'})
-
-    # html - body - div.document - div.main - div.product-view - div.attributes
-    for child in attributes:
+    div_attributes = div_info.find('div', attrs={'class': 'attributes'})
+    # html - body - div.document - div.main - div.product-view - div.div_attributes
+    for child in div_attributes:
         if child.name:
             if child.dt.text in DataKeysForPrice:
                 data['price'][child.dt.text] = child.dd.text
             else:
                 data['attrs'][child.dt.text] = child.dd.text
-
+    # получаю цены и остатки с контейнера <div class=price-helper>
+    # кладу в data['price']. Туда же засовываю всю дополнительную инфу.
     # html - body - div.document - div.main - div.product-view - div.info - div.price-helper
     div_pricehelper = div_info.find('div', attrs={'class': 'price-helper'})
     # price.price-helper - table
@@ -254,17 +278,33 @@ def GetInfoFromUrl(url: str) -> dict:
     # чищу мусор из строк. получаю чистые числа
     number = number.replace('В наличии: ', '').replace(' шт.', '')
     price = price.replace('Цена: ', '').replace(' р.', '').replace(' ', '')
-    data['price'] = {**data['price'], 'Цена': price, 'Количество': number, 'Картинка': filename, 'Ссылка': url}
+    data['price'] = {**data['price'], 'Цена': price, 'Количество': number, 'Ссылка': url, 'image_url': image_url}
+
+    return data
+
+
+def complete_processing_url(url: str) -> dict:
+    """
+    Получение данных по товару.
+    Скачивание изображения.
+    :param url: str
+    :return: dict['attrs', 'price']
+    """
+    data = get_info_from_url(url)
+    filename = download_file_rewrite(data['price']['image_url'], path=PathImage, rewrite=RewriteDownloadedImage)
+    logging.debug(filename)
+    data['price'] = {**data['price'], 'Картинка': filename}
     # рисую на изображении текст
     # делаю копию изображения
     filenametext = os.path.splitext(filename)[0] + '.text' + os.path.splitext(filename)[1]
     copyfile(filename, filenametext)
-    # заданные атрибуты для текста ищу в полученных данных в нестрогом соответсвии.
+    # messagedata - выбираю атрибуты для текста изображения из полученных данных data['attrs'] в нестрогом соответствии.
     messagedata = {'рисунок': '', 'цвет': '', 'состав': '', 'размер': ''}
     for i in data['attrs']:
-        attr = re.split('[ ,]', i.lower())
+        # attr = re.split('[ ,]', i.lower())
         for j in messagedata:
-            if j.lower() in attr:
+            # if j.lower() in attr:
+            if j.lower() in i.lower():
                 messagedata[j] = data['attrs'][i]
     if messagedata["рисунок"] and messagedata["цвет"]:
         delim = ', '
@@ -273,24 +313,25 @@ def GetInfoFromUrl(url: str) -> dict:
     # message=f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}\n{messagedata["состав"]}\n{messagedata["размер"]}'
     data['price'] = {**data['price'],
                      'Артикул с текстом': f'{data["price"].get("Артикул", "")} '
-                     f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
+                                          f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
     # text at the image
     if TextOverImage:
         message = Template(TemplateTextOver).substitute(design=messagedata["рисунок"], delim=delim,
                                                         color=messagedata["цвет"], material=messagedata["состав"],
                                                         size=messagedata["размер"])
-        StampTextOverImage(filenametext, message)
+        stamp_text_over_image(filenametext, message)
     if TextBottomImage:
         message = Template(TemplateTextBottom).substitute(design=messagedata["рисунок"], delim=delim,
                                                           color=messagedata["цвет"], material=messagedata["состав"],
                                                           size=messagedata["размер"])
-        StampTextBottomImage(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
+        stamp_text_bottom_image(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
     data['price'] = {**data['price'], 'Картинка с текстом': filenametext}
+    log_url(data['price']['Заголовок'], url + ';' + data['price']['Артикул с текстом'] + ';' + Path(filename).name)
     return data
 
 
 def info(url):
-    data = GetInfoFromUrl(url)
+    data = complete_processing_url(url)
     for i in data:
         print(f'{i:10} {data[i]}')
 
