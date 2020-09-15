@@ -70,7 +70,7 @@ def dbinsert(conn, data):
        [datetime, 0, 1000, 0]
     '''
     cursor = conn.cursor()
-    data[0] = data[0].replace(tzinfo=timezone.utc).timestamp()
+    data[0] = data[0].timestamp()
     cursor.execute('insert or replace into CasesADay(date_int,region_id,cases,deaths) values(?,?,?,?)',
                    data)
     cursor.close()
@@ -123,7 +123,7 @@ def dbstatistic(conn):
     print(cursor.fetchall()[0][0])
 
     print('TOP 10 CASES:')
-    sqlstring = 'SELECT datetime(date_int,"unixepoch"),cases, deaths, region FROM CasesADAY' \
+    sqlstring = 'SELECT datetime(date_int),cases, deaths, region FROM CasesADAY' \
                 ' LEFT JOIN regions ON CasesADAY.region_id=regions.id GROUP BY region ORDER BY cases DESC LIMIT 10'
     cursor.execute(sqlstring)
     pprint([i[0] for i in cursor.description])
