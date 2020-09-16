@@ -1,7 +1,24 @@
 #!/usr/bin/env python
 
-# Copyright 2020 by Konstantin Mukhin Al.
+# Copyright (c) 2020 Konstantin Mukhin Al.
 
+# module
+# html parsing
+# Make dict with useful data from beltextil url for using later. get_info_from_url()
+# Save image from url to file
+# String replaces
+# Transforming image: resize, crop, align
+# Add text over image. stamp_text_over_image()
+# Add text at the bottom of image. stamp_text_bottom_image()
+# Load settings from ini file
+# Save beltextil good information to log file
+# Search information in log file. Get code of good, url and etc. stamp_text_bottom_image()
+
+# TODO:
+#   Perform log functions as class
+#   Make sep func for image transformations
+#   Refactor dirty functions
+__version__ = '1.18'
 
 import configparser
 import logging
@@ -17,17 +34,6 @@ from string import Template
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from bs4 import BeautifulSoup
-
-__version__ = '1.10'
-
-# module
-# html navigation
-# save picture from url to file
-# string replaces
-# transforming image: resize, crop, align.
-# add text over image
-# add text at the bottom of image
-
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 headers = {
@@ -60,7 +66,7 @@ FontSizeOver: int = 45
 ImageResize: bool = False
 ImageResizeSize = (800, 600)
 ImageCrop: bool = False
-ImageCropSize = (800, 600)
+ImageCropSize: tuple = (800, 600)
 # read config file
 config.read(configname)
 PathImage = config.get('DEFAULT', 'PathImage', fallback=PathImage).strip("'").strip('"')
@@ -85,22 +91,24 @@ if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
 logging.debug('template string: ' + TemplateTextBottom)
 
 
-def log_url(title, url):
-    now = datetime.now()
+def log_url_csv(*args, sep=';'):
+    if not args:
+        return
+    now = f'{datetime.now():%Y-%m-%d %H:%M}'
     with open(urlfilelogname, 'a+', encoding='utf-8') as f:
-        f.write(f'{now:%Y-%m-%d %H:%M};{title};{url}\n')
+        f.write(sep.join([now, *args]) + '\n')
 
 
 def search_in_log_url(text):
     """
-        ищет информацию в файле, возвращает список строк
+        ищет информацию в файле, возвращает список
         дата, артикул, ссылка, артикул простой, имя изображения.
     :param text: text for search
     :return: list of lists
     """
 
     # remove duplicated spaces
-    def TextCooked(string):
+    def text_cooked(string):
         string = string.strip()
         string = re.sub('[",]', ' ', string)
         string = re.sub('см', '', string)
@@ -108,7 +116,7 @@ def search_in_log_url(text):
 
     with open(urlfilelogname, 'r', encoding='utf-8') as f:
         logging.debug('search string: ' + text)
-        return [line.split(';') for line in f if TextCooked(text) in TextCooked(line)]
+        return [line.split(';') for line in f if text_cooked(text) in text_cooked(line)]
 
 
 def stamp_text_over_image(file_name, message, border=False):
@@ -129,12 +137,12 @@ def stamp_text_over_image(file_name, message, border=False):
     (x, y) = (10, 10)
     # border
     color = ColorTextOver
-    shadowcolor = 'yellow'
+    shadow_color = 'yellow'
     if border:
-        draw.text((x - 1, y - 1), message, font=font, fill=shadowcolor)
-        draw.text((x + 1, y - 1), message, font=font, fill=shadowcolor)
-        draw.text((x, y + 1), message, font=font, fill=shadowcolor)
-        draw.text((x, y + 1), message, font=font, fill=shadowcolor)
+        draw.text((x - 1, y - 1), message, font=font, fill=shadow_color)
+        draw.text((x + 1, y - 1), message, font=font, fill=shadow_color)
+        draw.text((x, y + 1), message, font=font, fill=shadow_color)
+        draw.text((x, y + 1), message, font=font, fill=shadow_color)
     # text
     draw.text((x, y), message, color, font)
     image.save(file_name)
@@ -154,9 +162,9 @@ def stamp_text_bottom_image(file_name, message, border=False, resize_size=(), cr
     font_size = FontSizeBottom
     font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=font_size)
     if message.count('\n') == 0:
-        bottomhight = font_size + 20
+        bottom_height = font_size + 20
     else:
-        bottomhight = (font_size + 5) * (1 + message.count('\n'))
+        bottom_height = (font_size + 5) * (1 + message.count('\n'))
     # resize image
     if ImageResize:
         logging.debug('before resize: ' + str(image.size))
@@ -167,21 +175,32 @@ def stamp_text_bottom_image(file_name, message, border=False, resize_size=(), cr
         image_width, image_height = image.size
         # crop image
         if crop:
-            indentwidth = int((ImageCropSize[0] - image_width) / 2)
-            if indentwidth < 0:
-                indentwidth = 0
-            indentheight = int((ImageCropSize[1] - image_height) / 2)
-            if indentheight < 0:
-                indentheight = 0
-            newimage = Image.new('RGB', ImageCropSize, (200, 200, 200))
-            logging.debug('indentwidth: ' + str(indentwidth))
-            newimage.paste(image, (indentwidth, indentheight))
+            # Crop делается путем помещения исходного изображения на новое полотно желаемых размеров.
+            # Обрезку делаю справа и снизу.
+            # Центрирование изображения на полотне.
+            # Если размеры полотна больше размеров изображения, добавляются полосы.
+            # indentcolor  - цвет полотна и соотвественно полос
+            # indentleft - отступ слева
+            # indenttop - отступ сверху
+            indentcolor = (200, 200, 200)
+            indentleft = int((ImageCropSize[0] - image_width) / 2)
+            if indentleft < 0:
+                indentleft = 0
+            indenttop = int((ImageCropSize[1] - image_height) / 2)
+            if indenttop < 0:
+                indenttop = 0
+            # новое полотное с размерами ImageCropSize, цветом indentcolor
+            newimage = Image.new('RGB', ImageCropSize, indentcolor)
+            logging.debug('indentleft: ' + str(indentleft))
+            newimage.paste(image, (indentleft, indenttop))
             image = newimage
             logging.debug('after crop: ' + str(image.size))
             # image.show()
     image_width, image_height = image.size
-    background = Image.new('RGB', (image_width, image_height + bottomhight), (255, 255, 255))
-    draw = ImageDraw.Draw(background)
+    # создаю новое полотно image_with_text, на нем рисую текст и вставляю исходное изображение
+    image_with_text = Image.new('RGB', (image_width, image_height + bottom_height), (255, 255, 255))
+    draw = ImageDraw.Draw(image_with_text)
+    # координаты рисования текста
     (x, y) = (10, image_height + 10)
     color = ColorTextBottom
     shadowcolor = 'yellow'
@@ -194,16 +213,16 @@ def stamp_text_bottom_image(file_name, message, border=False, resize_size=(), cr
     # text
     draw.text((x, y), message, color, font)
     # add existed image to new
-    background.paste(image, (0, 0))
-    background.save(file_name)
+    image_with_text.paste(image, (0, 0))
+    image_with_text.save(file_name)
 
 
-def remove_characters(value, deletechars='\/:*?"<>|'):
+def remove_characters(value, chars='\\/:*?"<>|'):
     """
-    used to remove incorrect symbols for file names
+    used to remove invalid chars in filenames
     """
-    for c in deletechars:
-        value = value.replace(c, '')
+    for ch in chars:
+        value = value.replace(ch, '')
     return value
 
 
@@ -212,6 +231,7 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
         path = ''
     if not filename:
         filename = url.split('/')[-1]
+    filename = remove_characters(filename)
     local_filename = os.path.join(path, filename)
     local_filename = str(Path(local_filename).absolute())
     if Path(local_filename).is_file() and not rewrite:
@@ -227,6 +247,40 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     return local_filename
 
 
+def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=60):
+    contents = ''
+    is_overdue = True
+    if cache:
+        _, filename = url.rsplit("/", 1)
+        filename = remove_characters(filename)
+        if not cache_dir or Path(cache_dir).is_dir():
+            cache_dir = 'Cache'
+            Path(cache_dir).mkdir(exist_ok=True)
+        file_path = os.path.join(cache_dir, filename)
+        now_timestamp: float = datetime.now().timestamp()
+        # если в кэше есть, смотрю время изменения st_mtime = timestamp:float.
+        # если разница с текущим времене больше cache_time ставлю флаг просрочки is_overdue.
+        if Path(file_path).is_file():
+            file_mtime = Path(file_path).stat().st_mtime
+            is_overdue = now_timestamp - file_mtime > cache_time
+    # если без кэша или в кеше просрочка, отправляю запрос
+    if not cache or is_overdue:
+        try:
+            response = requests.get(url, headers=headers)
+            contents = response.text
+        except requests.exceptions.MissingSchema:
+            pass
+    # если кэш и не просрочен, считываю из файла
+    if cache and not is_overdue:
+        with open(file_path, 'r', encoding='utf8') as f:
+            contents = f.read()
+    # если кэш и просрочено, сохраняю в кэш
+    elif cache:
+        with open(file_path, 'w', encoding='utf8') as f:
+            f.write(contents)
+    return contents
+
+
 def get_info_from_url(url):
     """
     возвращаю data
@@ -236,18 +290,12 @@ def get_info_from_url(url):
     :return: dict
     """
     #  make schema dictionary
+    logging.info('beltextil start:' + str(datetime.now()))
     data = dict.fromkeys(('attrs', 'price'))
-    try:
-        response = requests.get(url, headers=headers)
-    except requests.exceptions.MissingSchema:
-        return data
     data['attrs'] = {}
     data['price'] = {}
-    # debugging. save received content.
-    # with open(f'tmp.html', 'wb') as f:
-    #    f.write(response.content)
-    #
-    soup = BeautifulSoup(response.text, 'html.parser')
+    contents = get_contents(url, headers=headers, cache=True)
+    soup = BeautifulSoup(contents, 'html.parser')
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
     # получаю ссылку на изображение
@@ -280,6 +328,7 @@ def get_info_from_url(url):
     price = price.replace('Цена: ', '').replace(' р.', '').replace(' ', '')
     data['price'] = {**data['price'], 'Цена': price, 'Количество': number, 'Ссылка': url, 'image_url': image_url}
 
+    logging.info('beltextil end:' + str(datetime.now()))
     return data
 
 
@@ -326,7 +375,7 @@ def complete_processing_url(url: str) -> dict:
                                                           size=messagedata["размер"])
         stamp_text_bottom_image(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
     data['price'] = {**data['price'], 'Картинка с текстом': filenametext}
-    log_url(data['price']['Заголовок'], url + ';' + data['price']['Артикул с текстом'] + ';' + Path(filename).name)
+    log_url_csv(data['price']['Заголовок'], url, data['price']['Артикул с текстом'], Path(filename).name)
     return data
 
 
