@@ -21,6 +21,7 @@
 __version__ = '1.18'
 
 import configparser
+from functools import wraps
 import logging
 import os
 import re
@@ -90,6 +91,16 @@ if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
 
 logging.debug('template string: ' + TemplateTextBottom)
 
+
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        ts = datetime.now()
+        result = f(*args, **kwargs)
+        te = datetime.now()
+        logging.info(f'func:{f.__name__}  took: {te-ts}')
+        return result
+    return wrap
 
 def log_url_csv(*args, sep=';'):
     if not args:
@@ -247,7 +258,8 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     return local_filename
 
 
-def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=60):
+@timing
+def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=300):
     contents = ''
     is_overdue = True
     if cache:
@@ -280,7 +292,7 @@ def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=6
             f.write(contents)
     return contents
 
-
+@timing
 def get_info_from_url(url):
     """
     возвращаю data
@@ -290,21 +302,21 @@ def get_info_from_url(url):
     :return: dict
     """
     #  make schema dictionary
-    logging.info('beltextil start:' + str(datetime.now()))
     data = dict.fromkeys(('attrs', 'price'))
     data['attrs'] = {}
     data['price'] = {}
     contents = get_contents(url, headers=headers, cache=True)
-    soup = BeautifulSoup(contents, 'html.parser')
+    # soup = BeautifulSoup(contents, 'html.parser')
+    soup = timing(BeautifulSoup)(contents, 'html.parser')
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
     # получаю ссылку на изображение
     image = soup.find('div', attrs={'class': 'front-image'})
     image_url = image.a.attrs['href']
-    ## filename = download_file_rewrite(image_url, path=PathImage, rewrite=RewriteDownloadedImage)
-    ## logging.debug(filename)
-    # Получаю заголовок head
-    data['price']['Заголовок'] = re.sub(' +', ' ', soup.html.head.title.text)
+    # Получаю заголовок head. Удаляю пробелы больше 1 подряд.
+    # По моим тестам через split работает быстрее чем через re.sub
+    # data['price']['Заголовок'] = re.sub(' +', ' ', soup.html.head.title.text)
+    data['price']['Заголовок'] =  ' '.join(soup.html.head.title.text.split())
     # получаю атрибуты из контейнера <div class=info>
     # html - body - div.document - div.main - div.product-view - div.info
     div_info = soup.find('div', attrs={'class': 'info'})
@@ -326,9 +338,8 @@ def get_info_from_url(url):
     # чищу мусор из строк. получаю чистые числа
     number = number.replace('В наличии: ', '').replace(' шт.', '')
     price = price.replace('Цена: ', '').replace(' р.', '').replace(' ', '')
-    data['price'] = {**data['price'], 'Цена': price, 'Количество': number, 'Ссылка': url, 'image_url': image_url}
+    data['price'].update({'Цена': price, 'Количество': number, 'Ссылка': url, 'image_url': image_url})
 
-    logging.info('beltextil end:' + str(datetime.now()))
     return data
 
 
@@ -342,7 +353,7 @@ def complete_processing_url(url: str) -> dict:
     data = get_info_from_url(url)
     filename = download_file_rewrite(data['price']['image_url'], path=PathImage, rewrite=RewriteDownloadedImage)
     logging.debug(filename)
-    data['price'] = {**data['price'], 'Картинка': filename}
+    data['price']['Картинка'] = filename
     # рисую на изображении текст
     # делаю копию изображения
     filenametext = os.path.splitext(filename)[0] + '.text' + os.path.splitext(filename)[1]
@@ -350,19 +361,15 @@ def complete_processing_url(url: str) -> dict:
     # messagedata - выбираю атрибуты для текста изображения из полученных данных data['attrs'] в нестрогом соответствии.
     messagedata = {'рисунок': '', 'цвет': '', 'состав': '', 'размер': ''}
     for i in data['attrs']:
-        # attr = re.split('[ ,]', i.lower())
         for j in messagedata:
-            # if j.lower() in attr:
             if j.lower() in i.lower():
                 messagedata[j] = data['attrs'][i]
     if messagedata["рисунок"] and messagedata["цвет"]:
         delim = ', '
     else:
         delim = ''
-    # message=f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}\n{messagedata["состав"]}\n{messagedata["размер"]}'
-    data['price'] = {**data['price'],
-                     'Артикул с текстом': f'{data["price"].get("Артикул", "")} '
-                                          f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}'}
+    data['price']['Артикул с текстом'] = (f'{data["price"].get("Артикул", "")} '
+                                          f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}')
     # text at the image
     if TextOverImage:
         message = Template(TemplateTextOver).substitute(design=messagedata["рисунок"], delim=delim,
@@ -374,7 +381,7 @@ def complete_processing_url(url: str) -> dict:
                                                           color=messagedata["цвет"], material=messagedata["состав"],
                                                           size=messagedata["размер"])
         stamp_text_bottom_image(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
-    data['price'] = {**data['price'], 'Картинка с текстом': filenametext}
+    data['price']['Картинка с текстом'] = filenametext
     log_url_csv(data['price']['Заголовок'], url, data['price']['Артикул с текстом'], Path(filename).name)
     return data
 
