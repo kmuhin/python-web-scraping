@@ -14,11 +14,7 @@
 # Save beltextil good information to log file
 # Search information in log file. Get code of good, url and etc. stamp_text_bottom_image()
 
-# TODO:
-#   Perform log functions as class
-#   Make sep func for image transformations
-#   Refactor dirty functions
-__version__ = '1.18'
+__version__ = '1.22'
 
 import configparser
 from functools import wraps
@@ -27,6 +23,7 @@ import os
 import re
 import sys
 from datetime import datetime
+import time
 
 from pathlib import Path
 from shutil import copyfile
@@ -43,9 +40,11 @@ headers = {
 
 workdir = Path(__file__).parent.absolute()
 workfile = Path(__file__).absolute()
+enable_wrap_timing = True
+logging.info('workdir: ' + str(workdir))
+logging.info('workfile: ' + str(workfile))
 
-config = configparser.ConfigParser()
-# configname = str(workdir) + '\\' + workfile.stem + '.ini'
+config_parser = configparser.ConfigParser()
 configname = os.path.join(str(workdir), workfile.stem + '.ini')
 urlfilelogname = os.path.join(str(workdir), workfile.stem + '.log')
 logging.debug('ini file:' + configname)
@@ -54,53 +53,176 @@ logging.debug('ini file:' + configname)
 DataKeysForPrice = ['Артикул']
 
 # set default values before read config
-PathImage: str = 'pictures'
-RewriteDownloadedImage: bool = False
-TextOverImage: bool = False
-TextBottomImage: bool = True
-TemplateTextBottom: str = '$design$delim$color'
-TemplateTextOver: str = '$design\n$color'
-ColorTextBottom: str = 'black'
-ColorTextOver: str = 'white'
-FontSizeBottom: int = 45
-FontSizeOver: int = 45
-ImageResize: bool = False
-ImageResizeSize = (800, 600)
-ImageCrop: bool = False
-ImageCropSize: tuple = (800, 600)
+path_image: str = 'pictures'
+bln_rewrite_downloaded_image: bool = False
+bln_textoverimage: bool = False
+bln_textbottomimage: bool = True
+template_text_bottom: str = '$design$delim$color'
+template_text_over: str = '$design\n$color'
+color_text_bottom: str = 'black'
+color_text_over: str = 'white'
+font_size_bottom: int = 45
+font_size_over: int = 45
+bln_imageresize: bool = False
+image_resize_size = (800, 600)
+bln_imagecrop: bool = False
+image_crop_size: tuple = (800, 600)
+
 # read config file
-config.read(configname)
-PathImage = config.get('DEFAULT', 'PathImage', fallback=PathImage).strip("'").strip('"')
-RewriteDownloadedImage = config.getboolean('DEFAULT', 'RewriteDownloadedImage', fallback=RewriteDownloadedImage)
-TextOverImage = config.getboolean('DEFAULT', 'textoverimage', fallback=TextOverImage)
-TextBottomImage = config.getboolean('DEFAULT', 'textbottomimage', fallback=TextBottomImage)
-TemplateTextBottom = config.get('DEFAULT', 'templatetextbottom', fallback=TemplateTextBottom)
-TemplateTextOver = config.get('DEFAULT', 'templatetextover', fallback=TemplateTextOver)
-ColorTextBottom = config.get('DEFAULT', 'colortextbottom', fallback=ColorTextBottom)
-ColorTextOver = config.get('DEFAULT', 'colortextover', fallback=ColorTextOver)
-FontSizeBottom = int(config.get('DEFAULT', 'fontsizebottom', fallback=FontSizeBottom))
-FontSizeOver = int(config.get('DEFAULT', 'fontsizeover', fallback=FontSizeOver))
-ImageResize = config.getboolean('IMAGETRANSFORM', 'imageresize', fallback=ImageResize)
-ImageCrop = config.getboolean('IMAGETRANSFORM', 'imagecrop', fallback=ImageCrop)
-if config.get('IMAGETRANSFORM', 'imagecropsize', fallback=None):
-    ImageCropSize = config.get('IMAGETRANSFORM', 'imagecropsize')
-    ImageCropSize = tuple(map(int, ImageCropSize.split(',')))
-if config.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
-    ImageResizeSize = config.get('IMAGETRANSFORM', 'imageresizesize')
-    ImageResizeSize = tuple(map(int, ImageResizeSize.split(',')))
+config_parser.read(configname)
+path_image = config_parser.get('DEFAULT', 'PathImage', fallback=path_image).strip('\'"')
+bln_rewrite_downloaded_image = config_parser.getboolean('DEFAULT', 'RewriteDownloadedImage',
+                                                        fallback=bln_rewrite_downloaded_image)
+bln_textoverimage = config_parser.getboolean('DEFAULT', 'textoverimage', fallback=bln_textoverimage)
+bln_textbottomimage = config_parser.getboolean('DEFAULT', 'textbottomimage', fallback=bln_textbottomimage)
+template_text_bottom = config_parser.get('DEFAULT', 'templatetextbottom', fallback=template_text_bottom)
+template_text_over = config_parser.get('DEFAULT', 'templatetextover', fallback=template_text_over)
+color_text_bottom = config_parser.get('DEFAULT', 'colortextbottom', fallback=color_text_bottom)
+color_text_over = config_parser.get('DEFAULT', 'colortextover', fallback=color_text_over)
+font_size_bottom = int(config_parser.get('DEFAULT', 'fontsizebottom', fallback=font_size_bottom))
+font_size_over = int(config_parser.get('DEFAULT', 'fontsizeover', fallback=font_size_over))
+bln_imageresize = config_parser.getboolean('IMAGETRANSFORM', 'imageresize', fallback=bln_imageresize)
+bln_imagecrop = config_parser.getboolean('IMAGETRANSFORM', 'imagecrop', fallback=bln_imagecrop)
+if config_parser.get('IMAGETRANSFORM', 'imagecropsize', fallback=None):
+    image_crop_size = config_parser.get('IMAGETRANSFORM', 'imagecropsize')
+    image_crop_size = tuple(map(int, image_crop_size.split(',')))
+if config_parser.get('IMAGETRANSFORM', 'imageresizesize', fallback=None):
+    image_resize_size = config_parser.get('IMAGETRANSFORM', 'imageresizesize')
+    image_resize_size = tuple(map(int, image_resize_size.split(',')))
 
-logging.debug('template string: ' + TemplateTextBottom)
+logging.debug('template string: ' + template_text_bottom)
 
 
-def timing(f):
+def wrap_timing(f):
+    if not enable_wrap_timing:
+        return f
+
     @wraps(f)
     def wrap(*args, **kwargs):
-        ts = datetime.now()
+        ts = time.perf_counter()
         result = f(*args, **kwargs)
-        te = datetime.now()
-        logging.info(f'func:{f.__name__}  took: {te-ts}')
+        te = time.perf_counter()
+        logging.info(f'func:{f.__name__[:20]:20}  took: {te - ts}')
         return result
+
     return wrap
+
+
+class ImageSimple(object):
+    def __init__(self, file_name):
+        """
+
+        :param file_name: image file name
+        """
+        self.image = Image.open(file_name)
+        self.file_name = file_name
+        self.font_name = os.path.join(str(workdir), 'FreeSans.ttf')
+
+    def save(self, file_name: str = None):
+        """
+        saving changes to file with file_name if specified
+        or to original file name
+        :type file_name: str
+        :return: None
+        """
+        file_name = file_name or self.file_name
+        self.image.save(file_name)
+
+    def resize(self, resize_size=()):
+        """
+        resize image
+        """
+        logging.debug('before resize: ' + str(self.image.size))
+        resize = resize_size
+        logging.debug('desired size: ' + str(resize))
+        self.image.thumbnail(resize, Image.ANTIALIAS)
+        logging.debug('after resize: ' + str(self.image.size))
+
+    def crop(self, crop_size=()):
+        """
+        # Crop делается путем помещения исходного изображения на новое полотно желаемых размеров.
+        # Обрезку делаю справа и снизу.
+        # Центрирование изображения на полотне.
+        # Если размеры полотна больше размеров изображения, добавляются полосы.
+        # indentcolor  - цвет полотна и соотвественно полос
+        # indentleft - отступ слева
+        # indenttop - отступ сверху
+        """
+        bgcolor = (200, 200, 200)
+        image_width, image_height = self.image.size
+        logging.debug('before crop: ' + str(self.image.size))
+        indentleft = int((crop_size[0] - image_width) / 2)
+        if indentleft < 0:
+            indentleft = 0
+        indenttop = int((crop_size[1] - image_height) / 2)
+        if indenttop < 0:
+            indenttop = 0
+        # новое полотное с размерами ImageCropSize, цветом indentcolor
+        newimage = Image.new('RGB', crop_size, bgcolor)
+        logging.debug('indentleft: ' + str(indentleft))
+        newimage.paste(self.image, (indentleft, indenttop))
+        self.image = newimage
+        logging.debug('after crop: ' + str(self.image.size))
+
+    def text_over_image(self, message, font_size=42, border=False,
+                        color='black', shadow_color='yellow'):
+        """
+        the function draws text over the image from file
+
+        :param shadow_color:
+        :param color:
+        :param font_size: font size
+        :type message: str
+        :type border: bool
+        :param border: draw border around text
+        :param message: text for drawing
+        """
+        draw = ImageDraw.Draw(self.image)
+        font = ImageFont.truetype(self.font_name, size=font_size)
+        (x, y) = (10, 10)
+        # border
+        if border:
+            draw.text((x - 1, y - 1), message, font=font, fill=shadow_color)
+            draw.text((x + 1, y - 1), message, font=font, fill=shadow_color)
+            draw.text((x, y + 1), message, font=font, fill=shadow_color)
+            draw.text((x, y + 1), message, font=font, fill=shadow_color)
+        # text
+        draw.text((x, y), message, color, font)
+
+    def text_bottom_image(self, message, font_size=42, border=False,
+                          color='black', shadow_color='yellow'):
+        """
+        the function draws text below the image from file
+
+        :param shadow_color:
+        :param color:
+        :param font_size: font size
+        :param border: border around text
+        :param message: text for drawing
+        """
+        if message.count('\n') == 0:
+            bottom_height = font_size + 20
+        else:
+            bottom_height = (font_size + 5) * (1 + message.count('\n'))
+        font = ImageFont.truetype(self.font_name, size=font_size)
+        image_width, image_height = self.image.size
+        # создаю новое полотно image_with_text, на нем рисую текст и вставляю исходное изображение
+        image_with_text = Image.new('RGB', (image_width, image_height + bottom_height), (255, 255, 255))
+        draw = ImageDraw.Draw(image_with_text)
+        # координаты рисования текста
+        (x, y) = (10, image_height + 10)
+        # text outline
+        if border:
+            draw.text((x - 1, y - 1), message, font=font, fill=shadow_color)
+            draw.text((x + 1, y - 1), message, font=font, fill=shadow_color)
+            draw.text((x, y + 1), message, font=font, fill=shadow_color)
+            draw.text((x, y + 1), message, font=font, fill=shadow_color)
+        # text
+        draw.text((x, y), message, color, font)
+        # add existed image to new
+        image_with_text.paste(self.image, (0, 0))
+        self.image = image_with_text
+
 
 def log_url_csv(*args, sep=';'):
     if not args:
@@ -118,114 +240,16 @@ def search_in_log_url(text):
     :return: list of lists
     """
 
-    # remove duplicated spaces
     def text_cooked(string):
-        string = string.strip()
         string = re.sub('[",]', ' ', string)
         string = re.sub('см', '', string)
-        return re.sub(' +', ' ', string)
+        # remove duplicated spaces
+        string = ' '.join(string.split())
+        return string
 
     with open(urlfilelogname, 'r', encoding='utf-8') as f:
         logging.debug('search string: ' + text)
         return [line.split(';') for line in f if text_cooked(text) in text_cooked(line)]
-
-
-def stamp_text_over_image(file_name, message, border=False):
-    """
-    the function draws text over the image from file
-
-    :type message: str
-    :type border: bool
-    :param border: draw border around text
-    :param message: text for drawing
-    :type file_name: str
-    :param file_name: name of file of image
-    """
-    image = Image.open(file_name)
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=FontSizeOver)
-
-    (x, y) = (10, 10)
-    # border
-    color = ColorTextOver
-    shadow_color = 'yellow'
-    if border:
-        draw.text((x - 1, y - 1), message, font=font, fill=shadow_color)
-        draw.text((x + 1, y - 1), message, font=font, fill=shadow_color)
-        draw.text((x, y + 1), message, font=font, fill=shadow_color)
-        draw.text((x, y + 1), message, font=font, fill=shadow_color)
-    # text
-    draw.text((x, y), message, color, font)
-    image.save(file_name)
-
-
-def stamp_text_bottom_image(file_name, message, border=False, resize_size=(), crop=False):
-    """
-    the function draws text below the image from file
-
-    :param file_name: name of file of image
-    :param crop: crop image
-    :param border: border around text
-    :param message: text for drawing
-    :type resize_size: tuple
-    """
-    image = Image.open(file_name)
-    font_size = FontSizeBottom
-    font = ImageFont.truetype(os.path.join(str(workdir), 'FreeSans.ttf'), size=font_size)
-    if message.count('\n') == 0:
-        bottom_height = font_size + 20
-    else:
-        bottom_height = (font_size + 5) * (1 + message.count('\n'))
-    # resize image
-    if ImageResize:
-        logging.debug('before resize: ' + str(image.size))
-        resize = resize_size
-        logging.debug('desired size: ' + str(resize))
-        image.thumbnail(resize, Image.ANTIALIAS)
-        logging.debug('after resize, before crop: ' + str(image.size))
-        image_width, image_height = image.size
-        # crop image
-        if crop:
-            # Crop делается путем помещения исходного изображения на новое полотно желаемых размеров.
-            # Обрезку делаю справа и снизу.
-            # Центрирование изображения на полотне.
-            # Если размеры полотна больше размеров изображения, добавляются полосы.
-            # indentcolor  - цвет полотна и соотвественно полос
-            # indentleft - отступ слева
-            # indenttop - отступ сверху
-            indentcolor = (200, 200, 200)
-            indentleft = int((ImageCropSize[0] - image_width) / 2)
-            if indentleft < 0:
-                indentleft = 0
-            indenttop = int((ImageCropSize[1] - image_height) / 2)
-            if indenttop < 0:
-                indenttop = 0
-            # новое полотное с размерами ImageCropSize, цветом indentcolor
-            newimage = Image.new('RGB', ImageCropSize, indentcolor)
-            logging.debug('indentleft: ' + str(indentleft))
-            newimage.paste(image, (indentleft, indenttop))
-            image = newimage
-            logging.debug('after crop: ' + str(image.size))
-            # image.show()
-    image_width, image_height = image.size
-    # создаю новое полотно image_with_text, на нем рисую текст и вставляю исходное изображение
-    image_with_text = Image.new('RGB', (image_width, image_height + bottom_height), (255, 255, 255))
-    draw = ImageDraw.Draw(image_with_text)
-    # координаты рисования текста
-    (x, y) = (10, image_height + 10)
-    color = ColorTextBottom
-    shadowcolor = 'yellow'
-    # text outline
-    if border:
-        draw.text((x - 1, y - 1), message, font=font, fill=shadowcolor)
-        draw.text((x + 1, y - 1), message, font=font, fill=shadowcolor)
-        draw.text((x, y + 1), message, font=font, fill=shadowcolor)
-        draw.text((x, y + 1), message, font=font, fill=shadowcolor)
-    # text
-    draw.text((x, y), message, color, font)
-    # add existed image to new
-    image_with_text.paste(image, (0, 0))
-    image_with_text.save(file_name)
 
 
 def remove_characters(value, chars='\\/:*?"<>|'):
@@ -239,6 +263,7 @@ def remove_characters(value, chars='\\/:*?"<>|'):
 
 def download_file_rewrite(url, filename='', path='', rewrite=False):
     if not Path(path).is_dir():
+        logging.error('download path does not exist: ' + path)
         path = ''
     if not filename:
         filename = url.split('/')[-1]
@@ -258,8 +283,19 @@ def download_file_rewrite(url, filename='', path='', rewrite=False):
     return local_filename
 
 
-@timing
-def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=300):
+def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time: int = 300):
+    """
+        takes url and return str with html
+
+    input:
+     url: url http://www.site.ru/...
+     header: http headers (agent, cookies, ...)
+     cache: whether to use the cache
+     cache_dir: directory of cache
+     cache_time: life time of cache
+    output:
+     content: html as text
+    """
     contents = ''
     is_overdue = True
     if cache:
@@ -292,7 +328,7 @@ def get_contents(url, *, headers='', cache=False, cache_dir='', cache_time:int=3
             f.write(contents)
     return contents
 
-@timing
+
 def get_info_from_url(url):
     """
     возвращаю data
@@ -305,9 +341,9 @@ def get_info_from_url(url):
     data = dict.fromkeys(('attrs', 'price'))
     data['attrs'] = {}
     data['price'] = {}
-    contents = get_contents(url, headers=headers, cache=True)
+    contents = get_contents(url, headers=headers, cache=True, cache_time=600)
     # soup = BeautifulSoup(contents, 'html.parser')
-    soup = timing(BeautifulSoup)(contents, 'html.parser')
+    soup = BeautifulSoup(contents, 'html.parser')
     # html - body - div.document - div.main - div.product-view
     # html - body - div.document - div.main - div.product-view - div.pictures - div.front-image - a
     # получаю ссылку на изображение
@@ -316,7 +352,7 @@ def get_info_from_url(url):
     # Получаю заголовок head. Удаляю пробелы больше 1 подряд.
     # По моим тестам через split работает быстрее чем через re.sub
     # data['price']['Заголовок'] = re.sub(' +', ' ', soup.html.head.title.text)
-    data['price']['Заголовок'] =  ' '.join(soup.html.head.title.text.split())
+    data['price']['Заголовок'] = ' '.join(soup.html.head.title.text.split())
     # получаю атрибуты из контейнера <div class=info>
     # html - body - div.document - div.main - div.product-view - div.info
     div_info = soup.find('div', attrs={'class': 'info'})
@@ -351,8 +387,7 @@ def complete_processing_url(url: str) -> dict:
     :return: dict['attrs', 'price']
     """
     data = get_info_from_url(url)
-    filename = download_file_rewrite(data['price']['image_url'], path=PathImage, rewrite=RewriteDownloadedImage)
-    logging.debug(filename)
+    filename = download_file_rewrite(data['price']['image_url'], path=path_image, rewrite=bln_rewrite_downloaded_image)
     data['price']['Картинка'] = filename
     # рисую на изображении текст
     # делаю копию изображения
@@ -371,16 +406,22 @@ def complete_processing_url(url: str) -> dict:
     data['price']['Артикул с текстом'] = (f'{data["price"].get("Артикул", "")} '
                                           f'{messagedata["рисунок"]}{delim}{messagedata["цвет"]}')
     # text at the image
-    if TextOverImage:
-        message = Template(TemplateTextOver).substitute(design=messagedata["рисунок"], delim=delim,
-                                                        color=messagedata["цвет"], material=messagedata["состав"],
-                                                        size=messagedata["размер"])
-        stamp_text_over_image(filenametext, message)
-    if TextBottomImage:
-        message = Template(TemplateTextBottom).substitute(design=messagedata["рисунок"], delim=delim,
+    image = ImageSimple(filenametext)
+    if bln_imageresize:
+        image.resize(resize_size=image_resize_size)
+    if bln_imagecrop:
+        image.crop(crop_size=image_crop_size)
+    if bln_textoverimage:
+        message = Template(template_text_over).substitute(design=messagedata["рисунок"], delim=delim,
                                                           color=messagedata["цвет"], material=messagedata["состав"],
                                                           size=messagedata["размер"])
-        stamp_text_bottom_image(filenametext, message, resize_size=ImageResizeSize, crop=ImageCrop)
+        image.text_over_image(message, font_size=font_size_over, color=color_text_over)
+    if bln_textbottomimage:
+        message = Template(template_text_bottom).substitute(design=messagedata["рисунок"], delim=delim,
+                                                            color=messagedata["цвет"], material=messagedata["состав"],
+                                                            size=messagedata["размер"])
+        image.text_bottom_image(message, font_size=font_size_bottom, color=color_text_bottom)
+    image.save()
     data['price']['Картинка с текстом'] = filenametext
     log_url_csv(data['price']['Заголовок'], url, data['price']['Артикул с текстом'], Path(filename).name)
     return data
